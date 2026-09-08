@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LEARNIVO — Modern Education Platform</title>
+  <meta name="description" content="Learn smarter. Practice better. LEARNIVO is a modern mathematics education platform for intelligent practice, diagnostic understanding, and student progress.">
+  <link rel="stylesheet" href="css/global.css">
+  <link rel="stylesheet" href="css/landing.css">
+  <link rel="stylesheet" href="css/responsive.css">
+</head>
+<body>
+
+  <!-- Header Navigation -->
+  <header class="navbar">
+    <div class="container navbar-inner">
+      <a href="index.html" class="logo-placeholder">LEARNIVO</a>
+
+      <ul class="nav-menu">
+        <li><a href="index.html" class="active">Home</a></li>
+        <li><a href="pages/learn.html">Learn</a></li>
+        <li><a href="pages/practice.html">Practice</a></li>
+        <li><a href="#how-it-works">How It Works</a></li>
+      </ul>
+
+      <div class="nav-actions">
+        <a href="pages/student-login.html" class="btn btn-outline btn-sm">Log In</a>
+        <a href="pages/student-login.html" class="btn btn-primary btn-sm">Sign Up</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero-section">
+    <!-- Decorative Background Accents (Matching Reference Image) -->
+    <div class="hero-bg-wave-left"></div>
+    <div class="hero-bg-circle-tr"></div>
+    <div class="dot-grid hero-dot-grid-left"></div>
+    
+    <!-- Flowing Wave Lines SVG Overlay -->
+    <svg class="hero-bg-waves-bottom" viewBox="0 0 1440 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M-100 180 C200 120 400 220 700 160 C1000 100 1300 200 1600 140" stroke="#DDD4F8" stroke-width="2.5" fill="none"/>
+      <path d="M-100 210 C300 160 500 240 850 170 C1200 100 1400 210 1600 170" stroke="#E6DEF9" stroke-width="1.8" fill="none"/>
+    </svg>
+
+    <div class="container hero-grid" style="position: relative; z-index: 2;">
+      <div class="hero-content">
+        <div class="hero-badge">✨ MODERN MATHEMATICS PLATFORM</div>
+        <h1 class="hero-title">Learn smarter.<br><span>Practice better.</span></h1>
+        <p class="hero-text">
+          Master mathematics through structured practice, step-by-step diagnostic understanding, and adaptive learning feedback built for your pace.
+        </p>
+
+        <div class="hero-actions">
+          <a href="pages/student-dashboard.html" class="btn btn-primary btn-lg">Start Learning →</a>
+          <a href="pages/learn.html" class="btn btn-secondary btn-lg">Explore Courses</a>
+        </div>
+      </div>
+
+      <!-- Right Side Visual Illustration Card -->
+      <div class="hero-visual">
+        <img src="assets/images/hero-student.png" alt="Student studying mathematics" class="hero-visual-img">
+      </div>
+    </div>
+  </section>
+
+  <!-- Horizontal Feature Strip (Section 10) -->
+  <section class="feature-strip">
+    <div class="container feature-strip-grid">
+      <div class="feature-strip-item">
+        <div class="feature-icon-box">👨‍🏫</div>
+        <div class="feature-info">
+          <h4>Expert-Guided Learning</h4>
+          <p>Curriculum structured by top educators</p>
+        </div>
+      </div>
+
+      <div class="feature-strip-item">
+        <div class="feature-icon-box">🧩</div>
+        <div class="feature-info">
+          <h4>Practice-Based Approach</h4>
+          <p>Step-by-step problem solving</p>
+        </div>
+      </div>
+
+      <div class="feature-strip-item">
+        <div class="feature-icon-box">📊</div>
+        <div class="feature-info">
+          <h4>Progress Tracking</h4>
+          <p>Real-time accuracy analytics</p>
+        </div>
+      </div>
+
+      <div class="feature-strip-item">
+        <div class="feature-icon-box">🎯</div>
+        <div class="feature-info">
+          <h4>Personalized Pathways</h4>
+          <p>Targeted diagnostic remediation</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Featured Courses Section (Horizontal Netflix-Style Auto-Carousel) -->
+  <section class="featured-courses-section container">
+    <div class="section-header-flex">
+      <div>
+        <h2 style="font-family: var(--font-heading);">Featured Courses</h2>
+        <p style="margin: 0;">Explore curriculum-aligned mathematics modules built for student success.</p>
+      </div>
+      <a href="pages/learn.html" class="btn btn-secondary btn-sm">View All Courses →</a>
+    </div>
+
+    <div class="featured-carousel-wrapper" id="featured-carousel-wrapper">
+      <button class="featured-arrow featured-arrow-left" id="featured-prev-btn" aria-label="Previous Course">‹</button>
+      <button class="featured-arrow featured-arrow-right" id="featured-next-btn" aria-label="Next Course">›</button>
+
+      <div class="courses-carousel-track" id="featured-courses-track">
+        <!-- Rendered dynamically by js/learning.js or initialized with cards -->
+      </div>
+    </div>
+  </section>
+
+  <!-- Categories Row (Section 12) -->
+  <section class="categories-section container">
+    <div style="margin-bottom: 2rem;">
+      <h2 style="font-family: var(--font-heading);">Browse by Categories</h2>
+    </div>
+
+    <div class="category-row">
+      <div class="category-card active" onclick="window.location.href='pages/learn.html'">
+        <div class="category-icon">∑</div>
+        <h4>Algebra</h4>
+      </div>
+
+      <div class="category-card" onclick="window.location.href='pages/learn.html'">
+        <div class="category-icon">△</div>
+        <h4>Geometry</h4>
+      </div>
+
+      <div class="category-card" onclick="window.location.href='pages/learn.html'">
+        <div class="category-icon">∿</div>
+        <h4>Trigonometry</h4>
+      </div>
+
+      <div class="category-card" onclick="window.location.href='pages/learn.html'">
+        <div class="category-icon">∫</div>
+        <h4>Calculus</h4>
+      </div>
+
+      <div class="category-card" onclick="window.location.href='pages/learn.html'">
+        <div class="category-icon">🎲</div>
+        <h4>Probability</h4>
+      </div>
+
+      <div class="category-card" onclick="window.location.href='pages/learn.html'">
+        <div class="category-icon">📊</div>
+        <h4>Statistics</h4>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Banner -->
+  <section class="container">
+    <div class="cta-banner">
+      <h2>Ready to Elevate Your Math Skills?</h2>
+      <p>Join LEARNIVO today for diagnostic assessments, structured problem practice, and personalized progress analytics.</p>
+      <a href="pages/student-dashboard.html" class="btn btn-primary btn-lg" style="background: #FFFFFF; color: var(--primary-purple);">Get Started Now →</a>
+    </div>
+  </section>
+
+  <!-- Minimal Footer (Section 35) -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-inner">
+        <a href="index.html" class="logo-placeholder">LEARNIVO</a>
+        <ul class="footer-links">
+          <li><a href="index.html">Home</a></li>
+          <li><a href="pages/learn.html">Learn</a></li>
+          <li><a href="pages/practice.html">Practice</a></li>
+          <li><a href="pages/progress.html">Progress</a></li>
+          <li><a href="pages/settings.html">Settings</a></li>
+        </ul>
+      </div>
+      <div class="footer-bottom">
+        <div>&copy; 2026 LEARNIVO Platform. All rights reserved.</div>
+        <div style="display: flex; gap: 1.5rem;">
+          <a href="#" onclick="showToast('Privacy Policy: All student learning data is stored locally in demo state.', 'info')">Privacy</a>
+          <a href="#" onclick="showToast('Terms of Service: Frontend demo version.', 'info')">Terms</a>
+          <a href="#" onclick="showToast('Accessibility Guidelines followed.', 'info')">Accessibility</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="js/mock-data.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/navigation.js"></script>
+  <script src="js/learning.js"></script>
+</body>
+</html>

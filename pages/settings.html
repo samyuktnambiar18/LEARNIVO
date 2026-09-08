@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings — LEARNIVO</title>
+  <link rel="stylesheet" href="../css/global.css">
+  <link rel="stylesheet" href="../css/dashboard.css">
+  <link rel="stylesheet" href="../css/settings.css">
+  <link rel="stylesheet" href="../css/responsive.css">
+</head>
+<body>
+
+  <div class="dashboard-layout">
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <a href="../index.html" class="logo-placeholder">LEARNIVO</a>
+      </div>
+      <ul class="sidebar-menu">
+        <li><a href="student-dashboard.html">📊 Dashboard</a></li>
+        <li><a href="learn.html">📚 Learn</a></li>
+        <li><a href="practice.html">🧩 Practice</a></li>
+        <li><a href="progress.html">📈 Progress</a></li>
+        <li><a href="test.html">📝 Diagnostic Test</a></li>
+        <li><a href="settings.html" class="active">⚙️ Settings</a></li>
+      </ul>
+      <div class="sidebar-footer"><a href="../index.html">🚪 Logout</a></div>
+    </aside>
+
+    <main class="dashboard-main">
+      <div class="dashboard-topbar">
+        <div>
+          <h2>Account & Preferences Settings</h2>
+          <p>Manage profile options, accessibility, and color theme preferences (Section 33).</p>
+        </div>
+      </div>
+
+      <!-- Appearance / Theme Selector Section (Section 33) -->
+      <div class="card settings-group">
+        <h3>Appearance Theme</h3>
+        <p style="font-size: 0.9rem;">Default theme is Light. Dark mode is available as a setting option and persists in localStorage.</p>
+
+        <div class="theme-option-box">
+          <div class="theme-card selected" id="theme-card-light">
+            <div style="font-size: 2rem; margin-bottom: 0.5rem;">☀️</div>
+            <h4>Light Theme (Default)</h4>
+            <p style="font-size: 0.8rem; color: var(--secondary-text); margin: 0;">Dominant White & Soft Violet</p>
+          </div>
+
+          <div class="theme-card" id="theme-card-dark">
+            <div style="font-size: 2rem; margin-bottom: 0.5rem;">🌙</div>
+            <h4>Dark Theme</h4>
+            <p style="font-size: 0.8rem; color: var(--secondary-text); margin: 0;">Dark Violet Contrast</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Profile & Notifications -->
+      <div class="card settings-group">
+        <h3>Profile Settings</h3>
+        <div class="form-group" style="margin-top: 1rem;">
+          <label class="form-label">Full Name</label>
+          <input type="text" class="form-control" value="Alex Morgan">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email Address</label>
+          <input type="email" class="form-control" value="alex.morgan@learnivo.edu">
+        </div>
+        <button class="btn btn-primary" onclick="showToast('Profile settings updated successfully!', 'success')">Save Changes</button>
+      </div>
+    </main>
+  </div>
+
+  <script src="../js/mock-data.js"></script>
+  <script src="../js/app.js"></script>
+  <script src="../js/settings.js"></script>
+</body>
+</html>

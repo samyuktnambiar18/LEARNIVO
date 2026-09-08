@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Diagnostic Test — LEARNIVO</title>
+  <link rel="stylesheet" href="../css/global.css">
+  <link rel="stylesheet" href="../css/test.css">
+  <link rel="stylesheet" href="../css/responsive.css">
+</head>
+<body>
+
+  <header class="navbar">
+    <div class="container navbar-inner">
+      <a href="../index.html" class="logo-placeholder">LEARNIVO</a>
+      <a href="student-dashboard.html" class="btn btn-outline btn-sm">Return to Dashboard</a>
+    </div>
+  </header>
+
+  <main class="container" style="padding: 2rem 0;">
+    <!-- Active Test Interface -->
+    <div class="test-wrapper" id="test-questions-wrapper">
+      <div class="test-header-bar">
+        <div>
+          <span class="course-badge" id="test-q-counter">Question 1 of 10</span>
+          <span class="course-badge" id="test-q-topic">Algebra</span>
+          <span class="course-badge" id="test-q-diff">Intermediate</span>
+        </div>
+        <div class="test-timer">
+          ⏱️ <span id="test-clock-display">03:00</span>
+        </div>
+      </div>
+
+      <div class="test-timer-line">
+        <div class="test-timer-fill" id="test-timer-fill-line"></div>
+      </div>
+
+      <div class="test-content-area">
+        <h3 id="test-q-text" style="font-family: var(--font-body); font-size: 1.25rem; margin-bottom: 1rem;">Solve for x in the quadratic polynomial equation:</h3>
+
+        <div class="math-formula-box" id="test-q-formula">2x² - 8x + 6 = 0</div>
+
+        <div class="form-group" style="margin-top: 2rem;">
+          <label class="form-label" for="test-q-input">Type your answer or steps:</label>
+          <textarea id="test-q-input" class="form-control" style="height: 120px;" placeholder="Write your step-by-step answer here..."></textarea>
+        </div>
+
+        <!-- Handwritten Upload Simulation (Section 23) -->
+        <div class="handwritten-upload-dropzone" id="hw-test-dropzone">
+          <div style="font-weight: 600; margin-bottom: 0.25rem;">✍️ Upload Handwritten Solution (Photo / PDF)</div>
+          <div style="font-size: 0.85rem; color: var(--secondary-text);">Drop solution file here or click to browse (5-min final submission window)</div>
+          <input type="file" id="hw-test-file" style="display: none;" accept="image/*,.pdf">
+          <div id="hw-test-filename" style="margin-top: 0.75rem; font-weight: 700; color: var(--primary-purple); display: none;"></div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+          <span style="font-size: 0.85rem; color: var(--secondary-text);">Unanswered questions will auto-mark as <strong>Not Answered</strong> when timer finishes.</span>
+          <button id="test-next-btn" class="btn btn-primary btn-lg">NEXT QUESTION →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Diagnostic Result Card (Hidden by default, displayed after test) -->
+    <div class="result-card-box" id="test-result-card" style="display: none;">
+      <span class="course-badge">ASSESSMENT COMPLETE</span>
+      <h2 style="margin-top: 0.75rem;">Diagnostic Test Results</h2>
+
+      <div class="score-badge-circle">
+        <div class="score-number-val" id="res-score-val">78%</div>
+        <div class="score-number-lbl">ACCURACY</div>
+      </div>
+
+      <div class="metrics-row" style="margin-bottom: 2.5rem;">
+        <div class="metric-card">
+          <div class="metric-info">
+            <h6>Correct</h6>
+            <div class="metric-val" style="color: var(--success);" id="res-correct-val">7</div>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-info">
+            <h6>Incorrect</h6>
+            <div class="metric-val" style="color: var(--error);" id="res-incorrect-val">1</div>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-info">
+            <h6>Not Answered</h6>
+            <div class="metric-val" style="color: var(--warning);" id="res-unanswered-val">2</div>
+          </div>
+        </div>
+      </div>
+
+      <a href="student-dashboard.html" class="btn btn-primary btn-lg">RETURN TO DASHBOARD →</a>
+    </div>
+  </main>
+
+  <script src="../js/mock-data.js"></script>
+  <script src="../js/app.js"></script>
+  <script src="../js/test.js"></script>
+</body>
+</html>

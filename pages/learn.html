@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Learn Library — LEARNIVO</title>
+  <link rel="stylesheet" href="../css/global.css">
+  <link rel="stylesheet" href="../css/dashboard.css">
+  <link rel="stylesheet" href="../css/learning.css">
+  <link rel="stylesheet" href="../css/responsive.css">
+</head>
+<body>
+
+  <div class="dashboard-layout">
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <a href="../index.html" class="logo-placeholder">LEARNIVO</a>
+      </div>
+      <ul class="sidebar-menu">
+        <li><a href="student-dashboard.html">📊 Dashboard</a></li>
+        <li><a href="learn.html" class="active">📚 Learn</a></li>
+        <li><a href="practice.html">🧩 Practice</a></li>
+        <li><a href="progress.html">📈 Progress</a></li>
+        <li><a href="test.html">📝 Diagnostic Test</a></li>
+        <li><a href="settings.html">⚙️ Settings</a></li>
+      </ul>
+      <div class="sidebar-footer"><a href="../index.html">🚪 Logout</a></div>
+    </aside>
+
+    <main class="dashboard-main">
+      <div class="learn-header">
+        <h2>Learn Library</h2>
+        <p>Explore mathematics topics and curriculum courses.</p>
+      </div>
+
+      <div class="learn-filter-bar">
+        <div class="category-tabs" id="learn-category-tabs"></div>
+      </div>
+
+      <div class="learn-grid" id="learn-courses-grid"></div>
+    </main>
+  </div>
+
+  <script src="../js/mock-data.js"></script>
+  <script src="../js/app.js"></script>
+  <script src="../js/learning.js"></script>
+</body>
+</html>

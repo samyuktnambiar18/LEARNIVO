@@ -1,0 +1,42 @@
+/* ==========================================================================
+   LEARNIVO — Settings & Theme Selector Stylesheet
+   ========================================================================== */
+
+.settings-group {
+  margin-bottom: 2.5rem;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 0;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.settings-row:last-child {
+  border-bottom: none;
+}
+
+.theme-option-box {
+  display: flex;
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+.theme-card {
+  flex: 1;
+  padding: 1.5rem;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--border-color);
+  cursor: pointer;
+  text-align: center;
+  transition: var(--transition);
+  background: var(--bg-primary);
+}
+
+.theme-card:hover,
+.theme-card.selected {
+  border-color: var(--primary-purple);
+  background: var(--bg-tertiary);
+}

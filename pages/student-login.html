@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Login — LEARNIVO</title>
+  <link rel="stylesheet" href="../css/global.css">
+  <link rel="stylesheet" href="../css/auth.css">
+  <link rel="stylesheet" href="../css/responsive.css">
+</head>
+<body>
+
+  <div class="auth-page-container">
+    <!-- Left Visual Panel -->
+    <div class="auth-panel-visual">
+      <a href="../index.html" class="logo-placeholder">LEARNIVO</a>
+
+      <div class="auth-visual-content">
+        <svg class="auth-visual-svg" viewBox="0 0 300 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="300" height="240" rx="16" fill="#F5F1FF"/>
+          <circle cx="150" cy="120" r="70" fill="#EDE7FF"/>
+          <!-- Student Learning Art -->
+          <rect x="70" y="150" width="160" height="60" rx="8" fill="#FFFFFF" stroke="#E8E3F0" stroke-width="2"/>
+          <text x="85" y="185" font-size="12" fill="#6D3FEA" font-family="sans-serif" font-weight="bold">Algebra Practice</text>
+        </svg>
+        <h2>Welcome Back, Student!</h2>
+        <p>Log in to access your course carousel, practice history, and diagnostic assessments.</p>
+      </div>
+
+      <div style="font-size: 0.85rem; color: var(--secondary-text);">
+        &copy; 2026 LEARNIVO Platform
+      </div>
+    </div>
+
+    <!-- Right Form Panel -->
+    <div class="auth-panel-form">
+      <div class="auth-form-box">
+        <a href="../index.html" style="font-size: 0.9rem; margin-bottom: 2rem; display: inline-block;">← Back to Home</a>
+
+        <div class="auth-header">
+          <h2>Student Login</h2>
+          <p>Enter your credentials to continue learning.</p>
+        </div>
+
+        <form id="student-login-form">
+          <div class="form-group">
+            <label class="form-label" for="student-email">Email Address</label>
+            <input type="email" id="student-email" class="form-control" placeholder="alex.morgan@learnivo.edu" value="alex.morgan@learnivo.edu" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="student-password">Password</label>
+            <input type="password" id="student-password" class="form-control" placeholder="••••••••" value="password123" required>
+          </div>
+
+          <div class="form-options">
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+              <input type="checkbox" checked> Remember me
+            </label>
+            <a href="#">Forgot password?</a>
+          </div>
+
+          <button type="submit" class="btn btn-primary auth-btn-full">LOGIN TO DASHBOARD →</button>
+        </form>
+
+        <div class="auth-switch-link">
+          Don't have an account? <a href="#" onclick="showToast('Sign up simulation: logging in as Alex Morgan...', 'info'); setTimeout(() => window.location.href='student-dashboard.html', 800)">Sign Up</a>
+          <br><br>
+          Are you an educator? <a href="teacher-login.html" style="color: var(--primary-purple); font-weight: 700;">TEACHER LOGIN →</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/mock-data.js"></script>
+  <script src="../js/app.js"></script>
+  <script src="../js/auth.js"></script>
+</body>
+</html>
