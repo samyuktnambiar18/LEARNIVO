@@ -149,6 +149,7 @@
   color: var(--primary-purple);
   background: linear-gradient(135deg, #6D3FEA 0%, #8E5DFF 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
