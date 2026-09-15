@@ -23,7 +23,7 @@ class LearnivoSupabaseService {
    */
   async init() {
     if (!LEARNIVO_SUPABASE_CONFIG.url || LEARNIVO_SUPABASE_CONFIG.url.includes('YOUR_SUPABASE')) {
-      console.info('Supabase URL not configured. LEARNIVO running in LocalStorage mode.');
+      console.info('Supabase URL not configured.');
       return;
     }
 
@@ -56,19 +56,49 @@ class LearnivoSupabaseService {
   }
 
   /**
-   * Get current authenticated user or persistent student UUID fallback
+   * Get current authenticated user or persistent student profile details
    */
   async getCurrentUser() {
+    let authUser = null;
+    let studentName = null;
+
     if (this.isInitialized && this.client && this.client.auth) {
       try {
-        const { data: { user } } = await this.client.auth.getUser();
-        if (user && user.id) return user;
+        const { data: { user }, error } = await this.client.auth.getUser();
+        if (error) {
+          console.log('Supabase auth.getUser() check:', error.message || error);
+        }
+        if (user && user.id) {
+          authUser = user;
+          // Check metadata for name
+          studentName = user.user_metadata?.full_name || user.user_metadata?.name || user.user_metadata?.display_name;
+
+          // If profile table exists, attempt to fetch profile display name
+          try {
+            const { data: profData } = await this.client
+              .from('profiles')
+              .select('name, display_name, full_name')
+              .eq('id', user.id)
+              .single();
+            if (profData) {
+              studentName = profData.display_name || profData.full_name || profData.name || studentName;
+            }
+          } catch (pErr) {
+            // Ignore if profiles table query fails
+          }
+        }
       } catch (e) {
         console.warn('Supabase auth.getUser error:', e);
       }
     }
 
+    // Fallback to local stored student profile
     const student = typeof getStoredStudent === 'function' ? getStoredStudent() : { id: 'S001', name: 'Alex Morgan' };
+
+    if (!studentName) {
+      studentName = student.name || 'Alex Morgan';
+    }
+
     if (!student.uuid || !student.uuid.includes('-')) {
       student.uuid = (typeof crypto !== 'undefined' && crypto.randomUUID) 
         ? crypto.randomUUID() 
@@ -76,10 +106,13 @@ class LearnivoSupabaseService {
       if (typeof saveStoredStudent === 'function') saveStoredStudent(student);
     }
 
+    const finalUserId = authUser ? authUser.id : student.uuid;
+
     return {
-      id: student.uuid,
-      email: 'alex.morgan@student.learnivo.com',
-      name: student.name || 'Alex Morgan'
+      id: finalUserId,
+      email: authUser ? authUser.email : (student.email || 'student@learnivo.com'),
+      name: studentName,
+      user_name: studentName
     };
   }
 
@@ -107,15 +140,15 @@ class LearnivoSupabaseService {
           .select()
           .single();
 
-        if (!error && data) {
+        if (error) {
+          console.error('CHAT CONVERSATION CREATION ERROR:', error);
+        } else if (data) {
           console.log('✅ Created chat_conversation in Supabase:', data.id);
           this.saveLocalConversation(data);
           return data;
-        } else if (error) {
-          console.warn('Supabase chat_conversations insert error:', error.message);
         }
       } catch (err) {
-        console.warn('Supabase createConversation exception:', err);
+        console.error('Supabase createConversation exception:', err);
       }
     }
 
@@ -128,14 +161,17 @@ class LearnivoSupabaseService {
   /**
    * Save a chat message row into public.chat_messages
    */
-  async saveMessage({ conversationId, userId, role, content, subject, topic }) {
+  async saveMessage({ conversationId, userId, userName, role, content, subject, topic }) {
     if (!content) return null;
-    const user = userId ? { id: userId } : await this.getCurrentUser();
+    const user = await this.getCurrentUser();
+    const finalUserId = userId || user.id;
+    const finalUserName = userName || user.name || 'Student';
 
     const msgObj = {
       conversation_id: conversationId,
-      user_id: user.id,
-      role: role || 'user', // 'user' | 'assistant' | 'system'
+      user_id: finalUserId,
+      user_name: finalUserName,
+      role: role || 'user', // 'user' | 'assistant'
       content: content,
       subject: subject || 'Mathematics',
       topic: topic || 'General',
@@ -154,9 +190,9 @@ class LearnivoSupabaseService {
           .single();
 
         if (error) {
-          console.warn('Supabase chat_messages insert error:', error.message);
+          console.error('CHAT MESSAGE SAVE ERROR:', error);
         } else {
-          console.log('✅ Saved chat_message to Supabase:', data.id);
+          console.log('✅ Saved chat_message to Supabase:', data ? data.id : 'success');
           // Touch parent conversation updated_at
           if (conversationId) {
             await this.client
@@ -167,7 +203,7 @@ class LearnivoSupabaseService {
           return data;
         }
       } catch (err) {
-        console.warn('Supabase saveMessage exception:', err);
+        console.error('Supabase saveMessage exception:', err);
       }
     }
 
@@ -184,19 +220,24 @@ class LearnivoSupabaseService {
         let query = this.client
           .from('chat_conversations')
           .select('*')
-          .eq('user_id', user.id)
           .order('updated_at', { ascending: false });
+
+        if (user && user.id) {
+          query = query.eq('user_id', user.id);
+        }
 
         if (subject) {
           query = query.eq('subject', subject);
         }
 
         const { data, error } = await query;
-        if (!error && data && data.length > 0) {
+        if (error) {
+          console.error('LOAD USER CONVERSATIONS ERROR:', error);
+        } else if (data && data.length > 0) {
           return data;
         }
       } catch (e) {
-        console.warn('Supabase loadUserConversations fallback:', e);
+        console.error('Supabase loadUserConversations exception:', e);
       }
     }
 
@@ -217,11 +258,13 @@ class LearnivoSupabaseService {
           .eq('conversation_id', conversationId)
           .order('created_at', { ascending: true });
 
-        if (!error && data && data.length > 0) {
+        if (error) {
+          console.error('LOAD CONVERSATION MESSAGES ERROR:', error);
+        } else if (data && data.length > 0) {
           return data;
         }
       } catch (e) {
-        console.warn('Supabase loadConversationMessages error:', e);
+        console.error('Supabase loadConversationMessages exception:', e);
       }
     }
 

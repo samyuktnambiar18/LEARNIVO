@@ -182,8 +182,15 @@ async function processUserQuestion(questionText, chatMessages, quickQuestionsCon
   const student = typeof getStoredStudent === 'function' ? getStoredStudent() : { id: 'S001', name: 'Alex Morgan' };
   const supabaseService = window.learnivoSupabase;
 
-  // 1. Get authenticated user
-  const currentUser = supabaseService ? await supabaseService.getCurrentUser() : { id: student.uuid || 'S001' };
+  // 1. Get authenticated user & dynamic student name
+  const currentUser = supabaseService 
+    ? await supabaseService.getCurrentUser() 
+    : { id: student.uuid || 'S001', name: student.name || 'Alex Morgan' };
+
+  const studentName = currentUser.name || (student.name || 'Alex Morgan');
+
+  console.log('Authenticated user:', currentUser);
+  console.log('Student name:', studentName);
 
   // 2. If no active conversation, create a new row in chat_conversations
   if (!activeConversationId && supabaseService) {
@@ -197,11 +204,16 @@ async function processUserQuestion(questionText, chatMessages, quickQuestionsCon
     }
   }
 
-  // 3. Save User message into chat_messages
-  if (activeConversationId && supabaseService) {
+  const currentConversationId = activeConversationId;
+  console.log('Conversation ID:', currentConversationId);
+
+  // 3. Save User message into chat_messages immediately
+  console.log('Saving user message:', questionText);
+  if (currentConversationId && supabaseService) {
     await supabaseService.saveMessage({
-      conversationId: activeConversationId,
+      conversationId: currentConversationId,
       userId: currentUser.id,
+      userName: studentName,
       role: 'user',
       content: questionText,
       subject: currentSelectedSubject,
@@ -220,8 +232,8 @@ async function processUserQuestion(questionText, chatMessages, quickQuestionsCon
     question: questionText,
     subject: currentSelectedSubject,
     topic: currentSelectedTopic,
-    studentId: student.id || 'S001',
-    studentName: student.name || 'Alex Morgan',
+    studentId: currentUser.id || student.id || 'S001',
+    studentName: studentName,
     level: student.grade || 'Grade 11'
   };
 
@@ -240,11 +252,13 @@ async function processUserQuestion(questionText, chatMessages, quickQuestionsCon
     aiReplyText = typeof replyObj === 'object' && replyObj !== null ? replyObj.text : String(replyObj || '');
   }
 
-  // 7. Save AI response into chat_messages
-  if (activeConversationId && supabaseService) {
+  // 7. Save AI response into chat_messages immediately
+  console.log('Saving AI response:', aiReplyText);
+  if (currentConversationId && supabaseService) {
     await supabaseService.saveMessage({
-      conversationId: activeConversationId,
+      conversationId: currentConversationId,
       userId: currentUser.id,
+      userName: studentName,
       role: 'assistant',
       content: aiReplyText,
       subject: currentSelectedSubject,
