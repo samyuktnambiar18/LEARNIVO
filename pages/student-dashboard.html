@@ -19,9 +19,9 @@
 
       <ul class="sidebar-menu">
         <li><a href="student-dashboard.html" class="active">📊 Dashboard</a></li>
-        <li><a href="learn.html">📚 Learn</a></li>
         <li><a href="practice.html">🧩 Practice</a></li>
         <li><a href="progress.html">📈 Progress</a></li>
+        <li><a href="chat.html">💬 Subject Chat</a></li>
         <li><a href="test.html">📝 Diagnostic Test</a></li>
         <li><a href="settings.html">⚙️ Settings</a></li>
       </ul>
@@ -36,17 +36,18 @@
       <!-- Topbar Header -->
       <div class="dashboard-topbar">
         <div class="greeting-text">
-          <h2 id="dash-greeting-name">Good morning, Alex 👋</h2>
-          <p>Assigned Level: <strong>Intermediate</strong> • Grade 10</p>
+          <h2 id="dash-greeting-name">Welcome Back, Alex! 👋</h2>
+          <p id="dash-level-grade-tag">Grade: <strong>Grade 11</strong> • Personal Syllabus Mode</p>
         </div>
 
         <div class="topbar-right">
+          <a href="chat.html" class="btn btn-secondary btn-sm">💬 Ask AI Tutor</a>
           <a href="test.html" class="btn btn-primary btn-sm">Start Test</a>
-          <div class="user-avatar-badge">
-            <div class="user-avatar-img">AM</div>
+          <div class="user-avatar-badge" style="display: flex; align-items: center; gap: 0.75rem;">
+            <img src="../assets/images/avatar-1.png" alt="Student Avatar" class="user-avatar-img" style="width: 42px; height: 42px; border-radius: 50%; border: 2px solid var(--primary-purple); object-fit: cover;">
             <div>
-              <h5 style="font-size: 0.9rem; margin: 0;">Alex Morgan</h5>
-              <span style="font-size: 0.78rem; color: var(--secondary-text);">Student</span>
+              <h5 class="student-name-label" style="font-size: 0.9rem; margin: 0;">Alex Morgan</h5>
+              <span class="student-grade-label" style="font-size: 0.78rem; color: var(--secondary-text);">Grade 11</span>
             </div>
           </div>
         </div>
@@ -56,8 +57,8 @@
       <div class="metrics-row">
         <div class="metric-card">
           <div class="metric-info">
-            <h6>Diagnostic Accuracy</h6>
-            <div class="metric-val" id="dash-acc-val">78%</div>
+            <h6>Enrolled Courses</h6>
+            <div class="metric-val" id="dash-acc-val">3</div>
           </div>
           <div class="metric-icon-box">🎯</div>
         </div>
@@ -80,8 +81,8 @@
 
         <div class="metric-card">
           <div class="metric-info">
-            <h6>Questions Solved</h6>
-            <div class="metric-val" id="dash-solved-val">142</div>
+            <h6>Syllabus Topics</h6>
+            <div class="metric-val" id="dash-solved-val">42 Topics</div>
           </div>
           <div class="metric-icon-box">🧩</div>
         </div>
@@ -91,13 +92,16 @@
       <div class="continue-card">
         <div class="continue-info">
           <span class="course-badge">CONTINUE LEARNING</span>
-          <h3>Algebra Fundamentals & Quadratic Equations</h3>
+          <h3 id="continue-course-title">Mathematics — Matrices & Determinants</h3>
           <div class="continue-progress-bar">
             <div class="continue-progress-fill"></div>
           </div>
-          <span style="font-size: 0.85rem; color: var(--secondary-text);">Next lesson: Linear Equations Factorization</span>
+          <span style="font-size: 0.85rem; color: var(--secondary-text);">Next lesson: Matrix Operations & Determinants</span>
         </div>
-        <a href="test.html" class="btn btn-primary btn-lg">Continue →</a>
+        <div style="display: flex; gap: 0.75rem;">
+          <a href="chat.html" class="btn btn-secondary btn-lg">💬 Subject Chat</a>
+          <a href="practice.html" class="btn btn-primary btn-lg">Continue →</a>
+        </div>
       </div>
 
       <!-- NETFLIX-STYLE HORIZONTAL COURSE / TEST SELECTION CAROUSEL (Section 17) -->
@@ -111,7 +115,7 @@
           <ul class="activity-timeline">
             <li class="activity-timeline-item">
               <div>
-                <h5 style="font-size: 0.95rem; margin-bottom: 0.2rem;">Completed Algebra Practice Test</h5>
+                <h5 style="font-size: 0.95rem; margin-bottom: 0.2rem;">Completed Matrices Practice</h5>
                 <span style="font-size: 0.8rem; color: var(--secondary-text);">Today at 10:45 AM</span>
               </div>
               <span class="course-badge">✓ 85% Score</span>
@@ -119,29 +123,29 @@
 
             <li class="activity-timeline-item">
               <div>
-                <h5 style="font-size: 0.95rem; margin-bottom: 0.2rem;">Reviewed Sign Consistency Error</h5>
+                <h5 style="font-size: 0.95rem; margin-bottom: 0.2rem;">Uploaded Personal Syllabus PDF</h5>
                 <span style="font-size: 0.8rem; color: var(--secondary-text);">Yesterday</span>
               </div>
-              <span class="course-badge" style="background: var(--warning-bg); color: var(--warning);">Reviewed</span>
+              <span class="course-badge" style="background: #EFEBFD; color: var(--primary-purple);">Syllabus Parsed</span>
             </li>
           </ul>
         </div>
 
         <!-- Topics to Improve (Section 19) -->
         <div class="card">
-          <h3 style="margin-bottom: 1.25rem;">Topics to Improve</h3>
+          <h3 style="margin-bottom: 1.25rem;">AI Recommendations</h3>
           <div style="display: flex; flex-direction: column; gap: 1rem;">
             <div>
               <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.25rem;">
-                <span>Trigonometric Identities</span>
-                <span style="color: var(--error);">62% Accuracy</span>
+                <span>Matrix Determinants</span>
+                <span style="color: var(--error);">Needs Practice</span>
               </div>
               <a href="practice.html" class="btn btn-secondary btn-sm" style="width: 100%; margin-top: 0.35rem;">Practice 5 Questions →</a>
             </div>
 
             <div>
               <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.25rem;">
-                <span>Probability Theorems</span>
+                <span>Thermodynamics Laws</span>
                 <span style="color: var(--warning);">70% Accuracy</span>
               </div>
               <a href="practice.html" class="btn btn-secondary btn-sm" style="width: 100%; margin-top: 0.35rem;">Practice 5 Questions →</a>
@@ -153,6 +157,8 @@
   </div>
 
   <script src="../js/mock-data.js"></script>
+  <script src="../js/supabase-config.js"></script>
+  <script src="../js/profile.js"></script>
   <script src="../js/app.js"></script>
   <script src="../js/dashboard.js"></script>
 </body>

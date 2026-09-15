@@ -3,77 +3,483 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Student Login — LEARNIVO</title>
+  <title>Student Profile Setup — LEARNIVO</title>
   <link rel="stylesheet" href="../css/global.css">
-  <link rel="stylesheet" href="../css/auth.css">
+  <link rel="stylesheet" href="../css/onboarding.css">
+  <link rel="stylesheet" href="../css/profile-setup-redesign.css">
   <link rel="stylesheet" href="../css/responsive.css">
 </head>
-<body>
+<body class="profile-page-bg">
 
-  <div class="auth-page-container">
-    <!-- Left Visual Panel -->
-    <div class="auth-panel-visual">
-      <a href="../index.html" class="logo-placeholder">LEARNIVO</a>
+  <!-- Atmospheric Background Glows -->
+  <div class="bg-glow top-right"></div>
+  <div class="bg-glow bottom-left"></div>
 
-      <div class="auth-visual-content">
-        <svg class="auth-visual-svg" viewBox="0 0 300 240" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="300" height="240" rx="16" fill="#F5F1FF"/>
-          <circle cx="150" cy="120" r="70" fill="#EDE7FF"/>
-          <!-- Student Learning Art -->
-          <rect x="70" y="150" width="160" height="60" rx="8" fill="#FFFFFF" stroke="#E8E3F0" stroke-width="2"/>
-          <text x="85" y="185" font-size="12" fill="#6D3FEA" font-family="sans-serif" font-weight="bold">Algebra Practice</text>
-        </svg>
-        <h2>Welcome Back, Student!</h2>
-        <p>Log in to access your course carousel, practice history, and diagnostic assessments.</p>
-      </div>
-
-      <div style="font-size: 0.85rem; color: var(--secondary-text);">
-        &copy; 2026 LEARNIVO Platform
-      </div>
+  <!-- Header -->
+  <header class="profile-header">
+    <a href="../index.html" class="profile-brand-logo">
+      <img src="../assets/images/logo.png" alt="LEARNIVO Logo" onerror="this.src='../assets/images/logo.jpg'">
+      <span>LEARNIVO</span>
+    </a>
+    <div class="header-right-auth">
+      <span>Already have an account?</span>
+      <a href="student-dashboard.html" class="btn-login-outline">Log In</a>
     </div>
+  </header>
 
-    <!-- Right Form Panel -->
-    <div class="auth-panel-form">
-      <div class="auth-form-box">
-        <a href="../index.html" style="font-size: 0.9rem; margin-bottom: 2rem; display: inline-block;">← Back to Home</a>
+  <!-- Main Viewport Container (Non-scrollable 100vh Desktop Layout) -->
+  <main class="profile-viewport-container">
 
-        <div class="auth-header">
-          <h2>Student Login</h2>
-          <p>Enter your credentials to continue learning.</p>
+    <div class="profile-setup-composition">
+
+      <!-- LEFT: Profile Setup Content & Card (45%) -->
+      <div class="profile-left-column">
+        
+        <div class="welcome-badge-pill">
+          <span>✦ WELCOME TO LEARNIVO</span>
         </div>
 
-        <form id="student-login-form">
-          <div class="form-group">
-            <label class="form-label" for="student-email">Email Address</label>
-            <input type="email" id="student-email" class="form-control" placeholder="alex.morgan@learnivo.edu" value="alex.morgan@learnivo.edu" required>
+        <h1 class="profile-main-title">Let’s Get Started 👋</h1>
+        <p class="profile-main-desc">Tell us a bit about yourself so we can personalize your learning experience.</p>
+
+        <!-- White Profile Setup Card -->
+        <div class="profile-card-wrapper">
+          
+          <!-- Step Progress Indicator Bar -->
+          <div class="profile-step-indicator">
+            <div class="step-pill active">
+              <span class="step-num">1</span>
+              <span class="step-label">Profile</span>
+            </div>
+            <span class="step-divider">→</span>
+            <div class="step-pill muted">
+              <span class="step-num">2</span>
+              <span class="step-label">Courses</span>
+            </div>
+            <span class="step-divider">→</span>
+            <div class="step-pill muted">
+              <span class="step-num">3</span>
+              <span class="step-label">Dashboard</span>
+            </div>
           </div>
 
-          <div class="form-group">
-            <label class="form-label" for="student-password">Password</label>
-            <input type="password" id="student-password" class="form-control" placeholder="••••••••" value="password123" required>
+          <form id="profile-setup-form" onsubmit="handleProfileSubmit(event)">
+            
+            <!-- Your Name -->
+            <div class="form-field-group">
+              <label for="student-name">Your Name</label>
+              <div class="input-icon-box">
+                <span class="icon-prefix">👤</span>
+                <input type="text" id="student-name" class="styled-input-field" placeholder="Enter your name" value="Alex Morgan" required>
+              </div>
+            </div>
+
+            <!-- Your Grade -->
+            <div class="form-field-group">
+              <label for="student-grade">Your Grade</label>
+              <div class="input-icon-box">
+                <span class="icon-prefix">🎓</span>
+                <select id="student-grade" class="styled-select-field" required>
+                  <option value="" disabled>Select your grade</option>
+                  <option value="Grade 9">Grade 9 (High School)</option>
+                  <option value="Grade 10">Grade 10 (High School)</option>
+                  <option value="Grade 11" selected>Grade 11 (High School)</option>
+                  <option value="Grade 12">Grade 12 (Senior High)</option>
+                  <option value="College / University">College / University</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Choose an Avatar (3x2 Arrangement) -->
+            <div class="avatar-field-group">
+              <div class="avatar-label-box">
+                <label>Choose an avatar</label>
+                <span class="avatar-sublabel">Pick a character that represents you!</span>
+              </div>
+
+              <!-- 6 Avatars rendered dynamically in 3x2 Grid -->
+              <div class="avatar-grid-3x2" id="avatar-grid-container">
+                <!-- Rendered dynamically by JS -->
+              </div>
+            </div>
+
+            <!-- Continue Button -->
+            <button type="submit" class="btn-continue-gradient">
+              <span>Continue →</span>
+            </button>
+          </form>
+
+          <div class="profile-card-footer">
+            You can change these details later in Settings.
           </div>
+        </div>
 
-          <div class="form-options">
-            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-              <input type="checkbox" checked> Remember me
-            </label>
-            <a href="#">Forgot password?</a>
-          </div>
+      </div>
 
-          <button type="submit" class="btn btn-primary auth-btn-full">LOGIN TO DASHBOARD →</button>
-        </form>
+      <!-- RIGHT: Large Integrated LEARNIVO Educational Workspace Scene (No Bounding Card) -->
+      <div class="environment-visual-wrapper">
+        <div class="environment-scene-box">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 500" width="100%" height="auto" class="learning-workspace-svg">
+            <defs>
+              <!-- Soft Sunlight Stream Gradient -->
+              <linearGradient id="sunbeamGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#FFEACC" stop-opacity="0.5" />
+                <stop offset="65%" stop-color="#FFDFB3" stop-opacity="0.18" />
+                <stop offset="100%" stop-color="#FFF0D6" stop-opacity="0" />
+              </linearGradient>
 
-        <div class="auth-switch-link">
-          Don't have an account? <a href="#" onclick="showToast('Sign up simulation: logging in as Alex Morgan...', 'info'); setTimeout(() => window.location.href='student-dashboard.html', 800)">Sign Up</a>
-          <br><br>
-          Are you an educator? <a href="teacher-login.html" style="color: var(--primary-purple); font-weight: 700;">TEACHER LOGIN →</a>
+              <!-- Sunrise/Sunset Window View Gradient -->
+              <linearGradient id="skyWindowGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stop-color="#FFE3D1" />
+                <stop offset="45%" stop-color="#F8C6DB" />
+                <stop offset="100%" stop-color="#D7BBEF" />
+              </linearGradient>
+
+              <!-- Distant Soft Blurred Scenery -->
+              <linearGradient id="distantHillsGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stop-color="#BA9FE6" stop-opacity="0.6" />
+                <stop offset="100%" stop-color="#9974D0" stop-opacity="0.8" />
+              </linearGradient>
+
+              <!-- Wooden/Neutral Desk Gradient -->
+              <linearGradient id="deskTopGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stop-color="#EFE6DE" />
+                <stop offset="50%" stop-color="#E4D7CA" />
+                <stop offset="100%" stop-color="#D7C7B7" />
+              </linearGradient>
+
+              <linearGradient id="deskEdgeGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stop-color="#C7B6A4" />
+                <stop offset="100%" stop-color="#B4A290" />
+              </linearGradient>
+
+              <!-- Desk Bottom Ambient Shadow -->
+              <linearGradient id="deskBottomShadow" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stop-color="#3E2B68" stop-opacity="0.1" />
+                <stop offset="100%" stop-color="#3E2B68" stop-opacity="0" />
+              </linearGradient>
+
+              <!-- Lamp Cone Light -->
+              <radialGradient id="lampLightCone" cx="50%" cy="0%" r="90%">
+                <stop offset="0%" stop-color="#FFF6E5" stop-opacity="0.6" />
+                <stop offset="60%" stop-color="#FFECC2" stop-opacity="0.18" />
+                <stop offset="100%" stop-color="#FFE2A3" stop-opacity="0" />
+              </radialGradient>
+
+              <!-- Book Spine Gradients -->
+              <linearGradient id="bookViolet" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#7C58E3" />
+                <stop offset="100%" stop-color="#9675F4" />
+              </linearGradient>
+              <linearGradient id="bookPeach" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#E87A64" />
+                <stop offset="100%" stop-color="#F49784" />
+              </linearGradient>
+              <linearGradient id="bookSage" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#55B27B" />
+                <stop offset="100%" stop-color="#76CBA8" />
+              </linearGradient>
+
+              <!-- Tablet Body Gradient -->
+              <linearGradient id="tabletBody" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#2D274E" />
+                <stop offset="100%" stop-color="#1A1638" />
+              </linearGradient>
+
+              <!-- Plant Leaf Gradient -->
+              <linearGradient id="leafGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#72D080" />
+                <stop offset="100%" stop-color="#3B924A" />
+              </linearGradient>
+
+              <!-- Soft Drop Shadows -->
+              <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+                <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#3E2B68" flood-opacity="0.1" />
+              </filter>
+              <filter id="tabletShadow" x="-20%" y="-20%" width="140%" height="140%">
+                <feDropShadow dx="3" dy="10" stdDeviation="10" flood-color="#1A1638" flood-opacity="0.18" />
+              </filter>
+              <filter id="windowBlur" x="-10%" y="-10%" width="120%" height="120%">
+                <feGaussianBlur stdDeviation="1.5" />
+              </filter>
+            </defs>
+
+            <!-- NO outer card rect! Scene elements integrate directly into page background -->
+
+            <!-- 1. Arched Window in Upper Right Background -->
+            <g class="background-window-group" transform="translate(460, 15)">
+              <!-- Outer Arch Frame -->
+              <rect x="0" y="0" width="240" height="250" rx="120" fill="#FFFFFF" filter="url(#softShadow)" opacity="0.95" />
+              <!-- Inner Pane with Sunrise/Sunset Sky -->
+              <rect x="12" y="12" width="216" height="226" rx="108" fill="url(#skyWindowGrad)" />
+              
+              <!-- Soft Sun Disc -->
+              <circle cx="160" cy="115" r="42" fill="#FFF6E5" opacity="0.9" />
+              <circle cx="160" cy="115" r="58" fill="#FFE8C8" opacity="0.35" />
+
+              <!-- Distant Blurred Scenery -->
+              <g filter="url(#windowBlur)">
+                <path d="M 12 215 Q 70 170 120 198 T 228 180 L 228 238 L 12 238 Z" fill="url(#distantHillsGrad)" />
+                <path d="M 35 225 Q 100 185 165 208 T 228 198 L 228 238 L 35 238 Z" fill="#7C59C0" opacity="0.5" />
+              </g>
+
+              <!-- Window Pane Divider Grid Lines -->
+              <line x1="120" y1="12" x2="120" y2="238" stroke="#FFFFFF" stroke-width="4.5" opacity="0.9" />
+              <line x1="12" y1="130" x2="228" y2="130" stroke="#FFFFFF" stroke-width="4.5" opacity="0.9" />
+            </g>
+
+            <!-- 2. Soft Warm Sunlight Streaming Across Wall & Desk -->
+            <polygon points="520,130 760,200 760,480 340,480" fill="url(#sunbeamGrad)" />
+
+            <!-- 3. Expansive Wooden Desk Surface (Spanning across scene) -->
+            <g class="desk-surface-group">
+              <!-- Desk Top Surface -->
+              <polygon points="10,330 750,330 750,470 10,470" fill="url(#deskTopGrad)" />
+              <line x1="10" y1="330" x2="750" y2="330" stroke="#FFFFFF" stroke-width="2.5" opacity="0.7" />
+              <!-- Desk Front Bevel Edge -->
+              <polygon points="10,470 750,470 750,490 10,490" fill="url(#deskEdgeGrad)" />
+              <!-- Ambient Shadow Underneath Desk Edge -->
+              <rect x="10" y="490" width="740" height="10" fill="url(#deskBottomShadow)" />
+            </g>
+
+            <!-- 4. Sleek Desk Lamp (Left Background) -->
+            <g class="desk-lamp-group" transform="translate(45, 120)">
+              <!-- Base -->
+              <ellipse cx="45" cy="210" rx="28" ry="9" fill="#B8A4DC" filter="url(#softShadow)" />
+              <ellipse cx="45" cy="209" rx="24" ry="7" fill="#D3C3EE" />
+              <!-- Curved Stem -->
+              <path d="M 45 208 C 45 120, 90 65, 125 55" stroke="#8C67D9" stroke-width="6.5" stroke-linecap="round" fill="none" />
+              <path d="M 45 208 C 45 120, 90 65, 125 55" stroke="#A785EA" stroke-width="3.5" stroke-linecap="round" fill="none" />
+              <!-- Lamp Shade -->
+              <path d="M 108 50 L 148 72 L 120 83 Z" fill="#7A56CC" filter="url(#softShadow)" />
+              <ellipse cx="134" cy="77" rx="16" ry="7" fill="#FFF2D6" />
+              <!-- Light Beam Cone -->
+              <polygon points="134,77 40,330 260,330" fill="url(#lampLightCone)" />
+            </g>
+
+            <!-- 5. Small Potted Green Plant (Beside Window / Desk Back Right) -->
+            <g class="plant-group" filter="url(#softShadow)" transform="translate(400, 240)">
+              <!-- Ceramic Pot -->
+              <path d="M 15 55 L 25 95 Q 38 102 50 102 Q 62 102 75 95 L 85 55 Z" fill="#F4EBE6" />
+              <ellipse cx="50" cy="55" rx="35" ry="9" fill="#E6D6CE" />
+              <ellipse cx="50" cy="55" rx="32" ry="7" fill="#5D4037" />
+              <!-- Leaves -->
+              <path d="M 50 55 Q 20 28 5 40 Q 10 62 50 55 Z" fill="url(#leafGrad)" />
+              <path d="M 50 55 Q 32 10 50 0 Q 68 10 50 55 Z" fill="url(#leafGrad)" />
+              <path d="M 50 55 Q 80 22 95 35 Q 90 58 50 55 Z" fill="url(#leafGrad)" />
+              <path d="M 50 55 Q 18 45 28 72 Q 45 66 50 55 Z" fill="#4CAF50" />
+              <path d="M 50 55 Q 82 50 72 75 Q 55 68 50 55 Z" fill="#388E3C" />
+            </g>
+
+            <!-- 6. Pencil Holder with Pencils (Middle Desk) -->
+            <g class="pencil-holder-group" filter="url(#softShadow)" transform="translate(325, 280)">
+              <!-- Cup -->
+              <rect x="8" y="30" width="38" height="52" rx="7" fill="#EFE9F8" />
+              <rect x="8" y="30" width="38" height="9" rx="4" fill="#DFD5EE" />
+              <!-- Pencils -->
+              <line x1="17" y1="32" x2="13" y2="8" stroke="#F28F79" stroke-width="4.5" stroke-linecap="round" />
+              <line x1="27" y1="32" x2="27" y2="3" stroke="#7C58E3" stroke-width="4.5" stroke-linecap="round" />
+              <line x1="37" y1="32" x2="40" y2="10" stroke="#55B27B" stroke-width="4.5" stroke-linecap="round" />
+            </g>
+
+            <!-- 7. Stacked Educational Textbooks (Left Desk Surface) -->
+            <g class="stacked-books-group" filter="url(#softShadow)" transform="translate(70, 315)">
+              <!-- Book 1 (Bottom - Violet) -->
+              <rect x="0" y="48" width="165" height="25" rx="4" fill="url(#bookViolet)" />
+              <rect x="159" y="50" width="6" height="21" fill="#FAF7FF" />
+              <!-- Book 2 (Middle - Peach Coral) -->
+              <rect x="10" y="26" width="152" height="23" rx="4" fill="url(#bookPeach)" />
+              <rect x="156" y="28" width="6" height="19" fill="#FFF5F2" />
+              <!-- Book 3 (Top - Sage Green) -->
+              <rect x="20" y="6" width="136" height="21" rx="4" fill="url(#bookSage)" />
+              <rect x="150" y="8" width="6" height="17" fill="#F2FAF5" />
+            </g>
+
+            <!-- 8. Open Notebook & Pen (Front Left Desk) -->
+            <g class="open-notebook-group" filter="url(#softShadow)" transform="translate(85, 385)">
+              <!-- Notebook Pages -->
+              <rect x="0" y="0" width="150" height="80" rx="7" fill="#FAF8F5" stroke="#E2DAD0" stroke-width="1.5" />
+              <!-- Center Spine Fold Line -->
+              <line x1="75" y1="0" x2="75" y2="80" stroke="#DCD3C7" stroke-width="2" />
+              <!-- Spiral Binding -->
+              <circle cx="75" cy="12" r="2.8" fill="#B0A697" />
+              <circle cx="75" cy="27" r="2.8" fill="#B0A697" />
+              <circle cx="75" cy="42" r="2.8" fill="#B0A697" />
+              <circle cx="75" cy="57" r="2.8" fill="#B0A697" />
+              <circle cx="75" cy="72" r="2.8" fill="#B0A697" />
+              <!-- Rule Lines -->
+              <line x1="12" y1="18" x2="65" y2="18" stroke="#E5E0D8" stroke-width="1.5" />
+              <line x1="12" y1="32" x2="58" y2="32" stroke="#E5E0D8" stroke-width="1.5" />
+              <line x1="12" y1="46" x2="62" y2="46" stroke="#E5E0D8" stroke-width="1.5" />
+              <line x1="12" y1="60" x2="54" y2="60" stroke="#E5E0D8" stroke-width="1.5" />
+
+              <line x1="85" y1="18" x2="138" y2="18" stroke="#E5E0D8" stroke-width="1.5" />
+              <line x1="85" y1="32" x2="132" y2="32" stroke="#E5E0D8" stroke-width="1.5" />
+              <line x1="85" y1="46" x2="136" y2="46" stroke="#E5E0D8" stroke-width="1.5" />
+              <line x1="85" y1="60" x2="128" y2="60" stroke="#E5E0D8" stroke-width="1.5" />
+
+              <!-- Sleek Pen Resting on Notebook -->
+              <line x1="125" y1="6" x2="145" y2="70" stroke="#6D3FEA" stroke-width="4" stroke-linecap="round" />
+              <line x1="125" y1="6" x2="127" y2="13" stroke="#FFD700" stroke-width="4" stroke-linecap="round" />
+            </g>
+
+            <!-- 9. Modern Tablet ON the Desk displaying LEARNIVO Dashboard -->
+            <g class="tablet-device-group" filter="url(#tabletShadow)" transform="translate(295, 260)">
+              <!-- Tablet Frame -->
+              <rect x="0" y="0" width="345" height="225" rx="18" fill="url(#tabletBody)" stroke="#43396F" stroke-width="2.5" />
+              <!-- Front Camera -->
+              <circle cx="172.5" cy="9" r="3" fill="#4A4273" />
+              
+              <!-- Tablet Screen Container -->
+              <g transform="translate(12, 18)">
+                <rect x="0" y="0" width="321" height="195" rx="9" fill="#FFFFFF" />
+
+                <!-- Screen Header Bar -->
+                <rect x="0" y="0" width="321" height="30" rx="9" fill="#F8F6FE" />
+                <line x1="0" y1="30" x2="321" y2="30" stroke="#EAE4FA" stroke-width="1" />
+                
+                <g transform="translate(12, 6)">
+                  <!-- LEARNIVO Logo & Wordmark -->
+                  <rect x="0" y="2" width="14" height="14" rx="3.5" fill="#6D3FEA" />
+                  <path d="M 3.5 7 L 7 4.5 L 10.5 7 L 10.5 12.5 L 7 10 L 3.5 12.5 Z" fill="#FFFFFF" />
+                  <text x="18" y="13" font-family="'Inter', sans-serif" font-weight="800" font-size="10.5" fill="#6D3FEA" letter-spacing="-0.3">LEARNIVO</text>
+
+                  <!-- User Badge -->
+                  <rect x="242" y="1" width="55" height="16" rx="8" fill="#EFEAFB" />
+                  <text x="269.5" y="12.5" font-family="'Inter', sans-serif" font-weight="700" font-size="8.5" fill="#6D3FEA" text-anchor="middle">Alex M. 👤</text>
+                </g>
+
+                <!-- Tablet Screen Main Body -->
+                <!-- Sidebar -->
+                <g transform="translate(0, 30)">
+                  <rect x="0" y="0" width="76" height="165" fill="#FAF8FF" />
+                  <line x1="76" y1="0" x2="76" y2="165" stroke="#F0EBFB" stroke-width="1" />
+                  
+                  <rect x="6" y="10" width="64" height="20" rx="5" fill="#6D3FEA" />
+                  <text x="13" y="23" font-family="'Inter', sans-serif" font-weight="700" font-size="8" fill="#FFFFFF">📊 Dashboard</text>
+
+                  <text x="13" y="47" font-family="'Inter', sans-serif" font-weight="600" font-size="8" fill="#6B658A">🎯 Practice</text>
+                  <text x="13" y="70" font-family="'Inter', sans-serif" font-weight="600" font-size="8" fill="#6B658A">🤖 AI Tutor</text>
+                  <text x="13" y="93" font-family="'Inter', sans-serif" font-weight="600" font-size="8" fill="#6B658A">📈 Progress</text>
+                </g>
+
+                <!-- Dashboard Content Area -->
+                <g transform="translate(86, 38)">
+                  <!-- Welcome Banner -->
+                  <rect x="0" y="0" width="223" height="45" rx="7" fill="url(#skyWindowGrad)" opacity="0.4" />
+                  <rect x="0" y="0" width="223" height="45" rx="7" fill="none" stroke="#E5DCFA" stroke-width="1" />
+                  <text x="12" y="17" font-family="'Inter', sans-serif" font-weight="800" font-size="11" fill="#1A1638">Welcome!</text>
+                  <text x="12" y="32" font-family="'Inter', sans-serif" font-weight="600" font-size="8.5" fill="#6D3FEA">Your Learning Journey</text>
+                  <circle cx="198" cy="22.5" r="13" fill="#E8DFFA" />
+                  <text x="198" y="26" font-family="'Inter', sans-serif" font-size="10" text-anchor="middle">🚀</text>
+
+                  <!-- 4 Dashboard Quick Feature Cards -->
+                  <g transform="translate(0, 52)">
+                    <!-- Courses Card -->
+                    <rect x="0" y="0" width="106" height="42" rx="6.5" fill="#FFFFFF" stroke="#EAE4FA" stroke-width="1" />
+                    <rect x="7" y="6" width="15" height="15" rx="3.5" fill="#EFEAFB" />
+                    <text x="14.5" y="17" font-family="'Inter', sans-serif" font-size="8.5" text-anchor="middle">📘</text>
+                    <text x="27" y="17" font-family="'Inter', sans-serif" font-weight="700" font-size="8.5" fill="#1A1638">Courses</text>
+                    <rect x="7" y="27" width="76" height="4.5" rx="2" fill="#6D3FEA" opacity="0.8" />
+                    <rect x="7" y="27" width="50" height="4.5" rx="2" fill="#6D3FEA" />
+
+                    <!-- Practice Card -->
+                    <rect x="113" y="0" width="106" height="42" rx="6.5" fill="#FFFFFF" stroke="#EAE4FA" stroke-width="1" />
+                    <rect x="120" y="6" width="15" height="15" rx="3.5" fill="#FFF0EC" />
+                    <text x="127.5" y="17" font-family="'Inter', sans-serif" font-size="8.5" text-anchor="middle">🎯</text>
+                    <text x="140" y="17" font-family="'Inter', sans-serif" font-weight="700" font-size="8.5" fill="#1A1638">Practice</text>
+                    <rect x="120" y="27" width="76" height="4.5" rx="2" fill="#F28F79" opacity="0.8" />
+                    <rect x="120" y="27" width="58" height="4.5" rx="2" fill="#F28F79" />
+
+                    <!-- AI Tutor Card -->
+                    <rect x="0" y="50" width="106" height="42" rx="6.5" fill="#FFFFFF" stroke="#EAE4FA" stroke-width="1" />
+                    <rect x="7" y="56" width="15" height="15" rx="3.5" fill="#F0F9F4" />
+                    <text x="14.5" y="67" font-family="'Inter', sans-serif" font-size="8.5" text-anchor="middle">🤖</text>
+                    <text x="27" y="67" font-family="'Inter', sans-serif" font-weight="700" font-size="8.5" fill="#1A1638">AI Tutor</text>
+                    <text x="7" y="83" font-family="'Inter', sans-serif" font-weight="600" font-size="7.5" fill="#55B27B">● Online Ready</text>
+
+                    <!-- Progress Card -->
+                    <rect x="113" y="50" width="106" height="42" rx="6.5" fill="#FFFFFF" stroke="#EAE4FA" stroke-width="1" />
+                    <rect x="120" y="56" width="15" height="15" rx="3.5" fill="#EFEAFB" />
+                    <text x="127.5" y="67" font-family="'Inter', sans-serif" font-size="8.5" text-anchor="middle">📈</text>
+                    <text x="140" y="67" font-family="'Inter', sans-serif" font-weight="700" font-size="8.5" fill="#1A1638">Progress</text>
+                    <!-- Mini Bar Chart -->
+                    <rect x="120" y="80" width="9" height="9" rx="1.5" fill="#D7C9FA" />
+                    <rect x="133" y="75" width="9" height="14" rx="1.5" fill="#B397FA" />
+                    <rect x="146" y="70" width="9" height="19" rx="1.5" fill="#6D3FEA" />
+                    <rect x="159" y="77" width="9" height="12" rx="1.5" fill="#8B68EE" />
+                  </g>
+                </g>
+              </g>
+            </g>
+          </svg>
         </div>
       </div>
-    </div>
-  </div>
 
-  <script src="../js/mock-data.js"></script>
+    </div>
+  </main>
+
+  <script src="../js/supabase-config.js"></script>
+  <script src="../js/profile.js"></script>
   <script src="../js/app.js"></script>
-  <script src="../js/auth.js"></script>
+  <script>
+    let selectedAvatarPath = '../assets/images/avatar-1.png';
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const student = getStoredStudent();
+      // Reset completedOnboarding to ensure starting on student-login.html runs a fresh login flow
+      student.completedOnboarding = false;
+      saveStoredStudent(student);
+
+      if (student.name) document.getElementById('student-name').value = student.name;
+      if (student.grade) document.getElementById('student-grade').value = student.grade;
+      if (student.avatar) selectedAvatarPath = student.avatar;
+
+      renderAvatarGrid();
+    });
+
+    function renderAvatarGrid() {
+      const container = document.getElementById('avatar-grid-container');
+      if (!container) return;
+
+      container.innerHTML = DEFAULT_AVATARS.map(av => {
+        const isSel = selectedAvatarPath.includes(`avatar-${av.id}.png`);
+        return `
+          <div class="avatar-item-circle ${isSel ? 'selected' : ''}" onclick="selectAvatar('${av.src}', this)">
+            <img src="${av.src}" alt="${av.alt}">
+          </div>
+        `;
+      }).join('');
+    }
+
+    function selectAvatar(src, elem) {
+      selectedAvatarPath = src;
+      document.querySelectorAll('.avatar-item-circle').forEach(el => el.classList.remove('selected'));
+      elem.classList.add('selected');
+    }
+
+    function handleProfileSubmit(e) {
+      e.preventDefault();
+      const name = document.getElementById('student-name').value.trim();
+      const grade = document.getElementById('student-grade').value;
+
+      if (!name) {
+        showToast('Please enter your name', 'error');
+        return;
+      }
+
+      const currentProfile = getStoredStudent();
+      currentProfile.name = name;
+      currentProfile.grade = grade;
+      currentProfile.avatar = selectedAvatarPath;
+
+      saveStoredStudent(currentProfile);
+
+      showToast(`Welcome ${name}! Proceeding to Course Setup...`, 'success');
+      setTimeout(() => {
+        window.location.href = 'onboarding.html';
+      }, 600);
+    }
+  </script>
 </body>
 </html>

@@ -10,6 +10,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initialize Session State
   initSessionState();
+
+  // Initialize SNS Workbench Backend Connectivity Badge
+  if (window.initBackendStatusBadge) {
+    window.initBackendStatusBadge('sns-home-backend-badge');
+    window.initBackendStatusBadge('sns-backend-badge');
+  }
 });
 
 /* Theme Manager (Light default, Dark mode toggled from Settings) */
@@ -26,20 +32,34 @@ function setTheme(themeName) {
 
 /* Session Storage Helper */
 function initSessionState() {
-  if (!localStorage.getItem('learnivo_student')) {
-    localStorage.setItem('learnivo_student', JSON.stringify(LEARNIVO_MOCK_DATA.student));
+  if (typeof window.getStoredStudent === 'function') {
+    const student = window.getStoredStudent();
+    if (student && typeof student.completedOnboarding === 'undefined') {
+      student.completedOnboarding = false;
+      if (typeof window.saveStoredStudent === 'function') {
+        window.saveStoredStudent(student);
+      }
+    }
   }
 }
 
 function getStoredStudent() {
-  const stored = localStorage.getItem('learnivo_student');
+  if (typeof window.getStoredStudent === 'function' && window.getStoredStudent !== getStoredStudent) {
+    return window.getStoredStudent();
+  }
+  const stored = localStorage.getItem('learnivo_student_profile') || localStorage.getItem('learnivo_student');
   return stored ? JSON.parse(stored) : LEARNIVO_MOCK_DATA.student;
 }
 
 function updateStoredStudent(data) {
   const current = getStoredStudent();
   const updated = { ...current, ...data };
-  localStorage.setItem('learnivo_student', JSON.stringify(updated));
+  if (typeof window.saveStoredStudent === 'function') {
+    window.saveStoredStudent(updated);
+  } else {
+    localStorage.setItem('learnivo_student_profile', JSON.stringify(updated));
+    localStorage.setItem('learnivo_student', JSON.stringify(updated));
+  }
   return updated;
 }
 

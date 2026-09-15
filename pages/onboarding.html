@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Course Setup — LEARNIVO</title>
+  <link rel="stylesheet" href="../css/global.css">
+  <link rel="stylesheet" href="../css/onboarding.css">
+  <link rel="stylesheet" href="../css/responsive.css">
+</head>
+<body class="onboarding-page-bg">
+
+  <!-- Header -->
+  <header class="onboarding-header">
+    <a href="../index.html" class="onboarding-logo">
+      <img src="../assets/images/logo.png" alt="LEARNIVO Logo" onerror="this.src='../assets/images/logo.jpg'">
+      <span>LEARNIVO</span>
+    </a>
+    
+    <!-- Top Right Profile Badge -->
+    <div style="display: flex; align-items: center; gap: 0.85rem;">
+      <div style="text-align: right;">
+        <div class="student-name-label" style="font-weight: 700; font-size: 0.95rem; color: var(--dark-text);">Alex Morgan</div>
+        <div class="student-grade-label" style="font-size: 0.82rem; color: var(--text-secondary);">Grade 11</div>
+      </div>
+      <img src="../assets/images/avatar-1.png" alt="Profile" class="user-avatar-img" style="width: 42px; height: 42px; border-radius: 50%; border: 2px solid var(--primary-purple); object-fit: cover;">
+    </div>
+  </header>
+
+  <main class="onboarding-main-container">
+
+    <!-- Step Progress Tracker Bar -->
+    <div class="onboarding-steps-bar">
+      <div class="step-node completed">
+        <div class="step-circle">✓</div>
+        <span>Profile</span>
+      </div>
+      <span class="step-arrow">→</span>
+      <div class="step-node active">
+        <div class="step-circle">2</div>
+        <span>Courses</span>
+      </div>
+      <span class="step-arrow">→</span>
+      <div class="step-node">
+        <div class="step-circle">3</div>
+        <span>Dashboard</span>
+      </div>
+    </div>
+
+    <!-- ====================================================================
+         VIEW 1: COURSE SETUP OPTIONS (Upload Syllabus vs Manual Entry)
+         ==================================================================== -->
+    <div id="step-select-option" class="course-setup-card">
+      <div class="setup-title-box">
+        <h2>Let's Set Up Your Learning 🎓</h2>
+        <p>Upload your syllabus or add your courses so LEARNIVO can personalize your learning experience.</p>
+      </div>
+
+      <div class="setup-options-grid">
+        <!-- Card Option 1: Drag & Drop Syllabus PDF -->
+        <div class="option-card" id="drag-drop-zone">
+          <input type="file" id="syllabus-file-input" class="file-input-hidden" accept=".pdf,.docx,.txt">
+          <div class="option-icon-box">📄</div>
+          <div>
+            <h3 class="option-card-title">Upload Your Syllabus</h3>
+            <p class="option-card-desc">Drag & drop your PDF here<br>or browse your local files</p>
+          </div>
+          <button type="button" class="btn-secondary-purple">
+            <span>Browse Files</span>
+          </button>
+          <div style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.5rem;">
+            Supported formats: PDF, DOCX, TXT
+          </div>
+        </div>
+
+        <!-- Card Option 2: Add Courses Manually -->
+        <div class="option-card" onclick="openManualEntryView()">
+          <div class="option-icon-box">＋</div>
+          <div>
+            <h3 class="option-card-title">Add Courses Manually</h3>
+            <p class="option-card-desc">Prefer to enter your courses, units,<br>and topics yourself?</p>
+          </div>
+          <button type="button" class="btn-secondary-purple">
+            <span>Add Courses Manually</span>
+          </button>
+          <div style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.5rem;">
+            Quick form setup without document upload
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====================================================================
+         VIEW 2: ANALYZING SYLLABUS SCREEN (Step 3 of Mockup)
+         ==================================================================== -->
+    <div id="step-analyzing" class="course-setup-card" style="display: none;">
+      <div class="analyzing-container">
+        <div class="analyzing-icon-box">
+          🔍
+        </div>
+
+        <div class="setup-title-box">
+          <h2>Analyzing your syllabus...</h2>
+          <p>Our AI is reading your document and extracting your subjects, units, and topics.</p>
+        </div>
+
+        <div class="analyzing-progress-box">
+          <div class="analyzing-bar-bg">
+            <div class="analyzing-bar-fill" id="analyzing-progress-fill"></div>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-weight: 700; font-size: 0.95rem;">
+            <span id="analyzing-status-tip" style="color: var(--primary-purple);">Reading PDF text content...</span>
+            <span id="analyzing-percent-text" style="color: var(--primary-purple);">0%</span>
+          </div>
+        </div>
+
+        <div class="analyzing-badge-tip">
+          <span>✨</span>
+          <span>This may take a few moments. Please don't close this page.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====================================================================
+         VIEW 3: AI-DETECTED COURSES REVIEW PAGE (Step 4 of Mockup)
+         ==================================================================== -->
+    <div id="step-detected-courses" class="course-setup-card" style="display: none;">
+      <div class="setup-title-box">
+        <h2>We Found These Courses! 🎯</h2>
+        <p>Here are the subjects, units and topics detected from your syllabus. You can edit or remove anything before continuing.</p>
+      </div>
+
+      <!-- Detected Course Cards Grid -->
+      <div class="detected-courses-grid" id="detected-courses-list">
+        <!-- Rendered dynamically by JS -->
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 1rem;">
+        <button type="button" class="btn-secondary-purple" onclick="showStepView('step-select-option')">
+          <span>← Re-upload / Add More</span>
+        </button>
+
+        <button type="button" class="btn-primary-gradient" style="width: auto; padding: 0.9rem 2.5rem;" onclick="confirmAndGoToDashboard()">
+          <span>Looks Good — Continue →</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ====================================================================
+         VIEW 4: MANUAL COURSE ENTRY FORM (Step 5 of Mockup)
+         ==================================================================== -->
+    <div id="step-manual-entry" class="course-setup-card" style="display: none;">
+      <div class="setup-title-box" style="text-align: left; max-width: 100%;">
+        <h2>Add Your Courses Manually</h2>
+        <p>Enter your subjects, course codes, and topics. You can add multiple courses.</p>
+      </div>
+
+      <div id="manual-courses-container">
+        <!-- Rendered dynamically by JS -->
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <button type="button" class="btn-secondary-purple" onclick="addManualCourseFormRow()">
+          <span>+ Add Another Course</span>
+        </button>
+
+        <div style="display: flex; gap: 1rem;">
+          <button type="button" class="btn-secondary-purple" onclick="showStepView('step-select-option')">
+            <span>Cancel</span>
+          </button>
+          <button type="button" class="btn-primary-gradient" style="width: auto; padding: 0.85rem 2.2rem;" onclick="saveManualCoursesAndContinue()">
+            <span>Save and Continue →</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Edit Course Modal -->
+  <div class="modal-overlay" id="edit-course-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Edit Course Details</h3>
+        <button type="button" onclick="closeEditCourseModal()" style="background: none; border: none; font-size: 1.4rem; cursor: pointer;">✕</button>
+      </div>
+
+      <div class="form-group-custom">
+        <label for="edit-course-name">Course Name</label>
+        <input type="text" id="edit-course-name" class="custom-input-field" placeholder="e.g. Mathematics">
+      </div>
+
+      <div class="form-group-custom">
+        <label for="edit-course-code">Course Code</label>
+        <input type="text" id="edit-course-code" class="custom-input-field" placeholder="e.g. MAT101">
+      </div>
+
+      <div class="form-group-custom">
+        <label for="edit-course-topics">Topics (One per line)</label>
+        <textarea id="edit-course-topics" class="custom-input-field" rows="6" placeholder="Matrices&#10;Differential Calculus&#10;Integral Calculus"></textarea>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 1rem;">
+        <button type="button" class="btn-secondary-purple" onclick="closeEditCourseModal()">Cancel</button>
+        <button type="button" class="btn-primary-gradient" style="width: auto; padding: 0.75rem 1.8rem;" onclick="saveEditedCourseModal()">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="../js/supabase-config.js"></script>
+  <script src="../js/profile.js"></script>
+  <script src="../js/syllabus-parser.js"></script>
+  <script src="../js/app.js"></script>
+  <script src="../js/onboarding.js"></script>
+</body>
+</html>

@@ -128,7 +128,7 @@ a:hover {
   padding: 0 2rem;
 }
 
-/* Text Logo Placeholder */
+/* Brand Logo System */
 .logo-placeholder {
   font-family: var(--font-heading);
   font-weight: 700;
@@ -137,16 +137,19 @@ a:hover {
   color: var(--primary-purple);
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.65rem;
 }
 
 .logo-placeholder::before {
   content: '';
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  background: var(--primary-purple);
-  box-shadow: 0 4px 12px var(--purple-glow);
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background-image: url('../assets/images/logo.png');
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 4px 14px var(--purple-glow);
+  flex-shrink: 0;
 }
 
 /* Buttons */

@@ -80,7 +80,8 @@
   line-height: 1.15;
 }
 
-.hero-title span {
+.hero-title span,
+.hero-title-italic {
   color: var(--primary-purple);
   font-style: italic;
 }
@@ -88,7 +89,7 @@
 .hero-text {
   font-size: 1.15rem;
   color: var(--secondary-text);
-  margin-bottom: 2.5rem;
+  margin-bottom: 2.25rem;
   max-width: 520px;
   line-height: 1.7;
 }
@@ -97,26 +98,72 @@
   display: flex;
   align-items: center;
   gap: 1.25rem;
+  margin-bottom: 2.5rem;
+}
+
+/* Hero Metrics Row (Matching Reference Image) */
+.hero-metrics-row {
+  display: flex;
+  align-items: center;
+  gap: 2.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-light);
+}
+
+.metric-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.metric-icon {
+  font-size: 1.35rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.metric-data {
+  display: flex;
+  flex-direction: column;
+}
+
+.metric-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--dark-text);
+  line-height: 1.2;
+}
+
+.metric-label {
+  font-size: 0.8rem;
+  color: var(--secondary-text);
+  font-weight: 500;
 }
 
 /* Hero Right Educational Illustration Card */
 .hero-visual {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hero-visual-card {
   background: var(--bg-primary);
   border-radius: var(--radius-lg);
   padding: 0.6rem;
   border: 1px solid var(--border-color);
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 16px 40px rgba(109, 63, 234, 0.08);
   position: relative;
   overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 100%;
   transition: var(--transition);
 }
 
-.hero-visual:hover {
+.hero-visual-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 20px 48px rgba(109, 63, 234, 0.15);
+  box-shadow: 0 24px 52px rgba(109, 63, 234, 0.14);
   border-color: var(--soft-violet);
 }
 
@@ -128,12 +175,20 @@
   display: block;
 }
 
-/* Horizontal Feature Strip (Section 10) */
+/* Horizontal Feature Strip Container (Floating Card Style) */
+.feature-strip-section {
+  margin-top: -2rem;
+  margin-bottom: 5rem;
+  position: relative;
+  z-index: 10;
+}
+
 .feature-strip {
-  padding: 3rem 0;
+  padding: 1.75rem 2.5rem;
   background: var(--bg-primary);
-  border-y: 1px solid var(--border-light);
-  margin-bottom: 6rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-md);
 }
 
 .feature-strip-grid {
@@ -146,6 +201,61 @@
   display: flex;
   align-items: center;
   gap: 1.25rem;
+}
+
+.feature-icon-box {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  background: var(--bg-tertiary);
+  color: var(--primary-purple);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  flex-shrink: 0;
+}
+
+.feature-info h4 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-bottom: 0.2rem;
+}
+
+.feature-info p {
+  font-size: 0.8rem;
+  color: var(--secondary-text);
+  margin: 0;
+}
+
+/* Backend Status Badge */
+.backend-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: var(--radius-full);
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-dot.green {
+  background: #10B981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+}
+
+.status-dot.orange {
+  background: #F59E0B;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.5);
 }
 
 .feature-icon-box {

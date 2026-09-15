@@ -131,7 +131,7 @@ function recordAndAdvance(expired = false) {
 
 function finishTest() {
   clearInterval(perQuestionTimer);
-  showToast('Test Assessment Completed! Evaluating your answers...', 'success');
+  showToast('Test Assessment Completed! Transmitting diagnostic evaluation to SNS Workbench backend...', 'success');
 
   let correctCount = 0;
   let notAnsweredCount = 0;
@@ -158,9 +158,23 @@ function finishTest() {
   localStorage.setItem('learnivo_last_test', JSON.stringify(resultObj));
   updateStoredStudent({ accuracy: `${scorePercent}%` });
 
+  // Transmit Diagnostic Evaluation Payload to SNS Workbench Webhook
+  if (window.learnivoAPI) {
+    window.learnivoAPI.sendAdaptiveRequest({
+      action: 'evaluate_diagnostic_test',
+      scorePercent,
+      correctCount,
+      total,
+      answers: recordedAnswers,
+      topic: 'Diagnostic Assessment'
+    }).then(res => {
+      console.log('SNS Workbench Diagnostic Response:', res);
+    });
+  }
+
   setTimeout(() => {
     window.location.href = 'test.html?view=result';
-  }, 1000);
+  }, 1200);
 }
 
 function renderResultPage() {

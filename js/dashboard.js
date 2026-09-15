@@ -1,8 +1,11 @@
 /* ==========================================================================
-   LEARNIVO — Student Dashboard & Netflix-Style Carousel Controller
+   LEARNIVO — Student Dashboard & Personalized Course Carousel Controller
    ========================================================================== */
 
 document.addEventListener('DOMContentLoaded', () => {
+  if (typeof checkOnboardingGuard === 'function') {
+    checkOnboardingGuard();
+  }
   renderStudentDashboard();
   initNetflixCarousel();
 });
@@ -10,57 +13,91 @@ document.addEventListener('DOMContentLoaded', () => {
 function renderStudentDashboard() {
   const student = getStoredStudent();
 
+  // Sync header profile details
+  if (typeof updateHeaderProfile === 'function') {
+    updateHeaderProfile(student);
+  }
+
   const greetingName = document.getElementById('dash-greeting-name');
-  if (greetingName) greetingName.textContent = `Good morning, ${student.name.split(' ')[0]} 👋`;
+  if (greetingName) {
+    const firstName = (student.name || 'Student').split(' ')[0];
+    greetingName.textContent = `Welcome Back, ${firstName}! 👋`;
+  }
+
+  const levelGradeTag = document.getElementById('dash-level-grade-tag');
+  if (levelGradeTag) {
+    levelGradeTag.innerHTML = `Grade: <strong>${escapeHtml(student.grade || 'Grade 11')}</strong> • Personal Syllabus Mode`;
+  }
+
+  // Render stats
+  const courses = student.courses || [];
+  const stats = typeof getCourseStats === 'function' ? getCourseStats(courses) : { totalCourses: courses.length, totalUnits: 12, totalTopics: 48 };
 
   const xpVal = document.getElementById('dash-xp-val');
   const streakVal = document.getElementById('dash-streak-val');
   const solvedVal = document.getElementById('dash-solved-val');
   const accVal = document.getElementById('dash-acc-val');
 
-  if (xpVal) xpVal.textContent = `${student.xp} XP`;
-  if (streakVal) streakVal.textContent = `${student.streak} Days`;
-  if (solvedVal) solvedVal.textContent = student.questionsSolved;
-  if (accVal) accVal.textContent = student.accuracy;
+  if (xpVal) xpVal.textContent = `${student.xp || 1240} XP`;
+  if (streakVal) streakVal.textContent = `${student.streak || 12} Days`;
+  if (solvedVal) solvedVal.textContent = `${stats.totalTopics} Topics`;
+  if (accVal) accVal.textContent = `${stats.totalCourses} Courses`;
+
+  // Continue Learning Banner with First Course
+  const continueTitle = document.getElementById('continue-course-title');
+  if (continueTitle && courses.length > 0) {
+    const firstCourse = courses[0];
+    const firstUnit = (firstCourse.units && firstCourse.units.length > 0) ? firstCourse.units[0].name : 'Unit 1';
+    continueTitle.textContent = `${firstCourse.name} — ${firstUnit}`;
+  }
 }
 
-/* Netflix-Style Horizontal Sliding Carousel (Section 17) */
+/* Dynamic Course Carousel (Section 17) */
 function initNetflixCarousel() {
   const carouselContainer = document.getElementById('netflix-carousel-container');
   if (!carouselContainer) return;
 
-  const categories = LEARNIVO_MOCK_DATA.carouselCategories;
+  const student = getStoredStudent();
+  const courses = student.courses || window.DEFAULT_COURSES;
 
-  carouselContainer.innerHTML = categories.map((cat, catIdx) => `
+  carouselContainer.innerHTML = `
     <div class="carousel-section">
       <div class="carousel-header">
-        <h3>${cat.title}</h3>
+        <h3>🎯 Your Enrolled Courses (${courses.length})</h3>
         <div class="carousel-controls">
-          <button class="carousel-arrow" onclick="scrollCarousel('track-${catIdx}', -300)">‹</button>
-          <button class="carousel-arrow" onclick="scrollCarousel('track-${catIdx}', 300)">›</button>
+          <button class="carousel-arrow" onclick="scrollCarousel('track-courses', -300)">‹</button>
+          <button class="carousel-arrow" onclick="scrollCarousel('track-courses', 300)">›</button>
         </div>
       </div>
 
-      <div class="netflix-carousel-track" id="track-${catIdx}">
-        ${cat.items.map(item => `
-          <div class="netflix-card" onclick="window.location.href='test.html'">
-            <span class="netflix-card-badge">${item.category}</span>
-            <h4>${item.title}</h4>
-            <p>Level: <strong>${item.level}</strong> • ${item.time}</p>
-            ${item.progress > 0 ? `
+      <div class="netflix-carousel-track" id="track-courses">
+        ${courses.map((course, idx) => {
+          const units = course.units || [];
+          let topicCount = 0;
+          units.forEach(u => { topicCount += (u.topics || []).length; });
+
+          const progressPct = Math.min(100, Math.max(15, 35 - idx * 10));
+
+          return `
+            <div class="netflix-card" onclick="window.location.href='practice.html?subject=${encodeURIComponent(course.name)}'">
+              <span class="netflix-card-badge">${course.code || 'COURSE'}</span>
+              <h4>${escapeHtml(course.name)}</h4>
+              <p><strong>${units.length} Units</strong> • ${topicCount} Topics</p>
+              
               <div style="width: 100%; height: 6px; background: var(--border-light); border-radius: var(--radius-full); margin-top: auto;">
-                <div style="width: ${item.progress}%; height: 100%; background: var(--primary-purple); border-radius: var(--radius-full);"></div>
+                <div style="width: ${progressPct}%; height: 100%; background: var(--primary-purple); border-radius: var(--radius-full);"></div>
               </div>
-            ` : ''}
-            <div class="netflix-card-footer">
-              <span style="font-size: 0.8rem; color: var(--secondary-text);">${item.progress > 0 ? `${item.progress}% Completed` : 'Not Started'}</span>
-              <span style="color: var(--primary-purple); font-weight: 700; font-size: 0.85rem;">Start →</span>
+              
+              <div class="netflix-card-footer">
+                <span style="font-size: 0.8rem; color: var(--secondary-text);">${progressPct}% Progress</span>
+                <span style="color: var(--primary-purple); font-weight: 700; font-size: 0.85rem;">Practice →</span>
+              </div>
             </div>
-          </div>
-        `).join('')}
+          `;
+        }).join('')}
       </div>
     </div>
-  `).join('');
+  `;
 }
 
 function scrollCarousel(trackId, amount) {
@@ -68,4 +105,12 @@ function scrollCarousel(trackId, amount) {
   if (track) {
     track.scrollBy({ left: amount, behavior: 'smooth' });
   }
+}
+
+function escapeHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
