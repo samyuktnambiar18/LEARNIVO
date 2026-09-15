@@ -66,8 +66,20 @@
             </div>
           </div>
 
-          <div style="display: flex; gap: 0.5rem;">
-            <button class="btn btn-secondary btn-sm" onclick="resetSubjectChat()" title="Clear Session & Reset History">🔄 Reset Chat</button>
+          <div style="display: flex; gap: 0.5rem; position: relative;">
+            <button class="btn btn-outline btn-sm" id="chat-history-btn" onclick="toggleChatHistoryPopover()" title="View Saved Supabase Conversations">📜 History</button>
+            <button class="btn btn-secondary btn-sm" onclick="resetSubjectChat()" title="Start New Conversation">🔄 Reset Chat</button>
+
+            <!-- Supabase Chat History Popover -->
+            <div id="chat-history-popover" class="chat-history-popover" style="display: none; position: absolute; top: 110%; right: 0; width: 320px; max-height: 380px; background: #FFFFFF; border: 1px solid #E2DDF5; box-shadow: 0 10px 25px rgba(109, 63, 234, 0.15); border-radius: 12px; z-index: 1000; overflow-y: auto; padding: 0.75rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; border-bottom: 1px solid #E2DDF5; padding-bottom: 0.4rem;">
+                <span style="font-weight: 700; font-size: 0.88rem; color: #6D3FEA;">📜 Supabase Chat History</span>
+                <span style="font-size: 0.8rem; color: #6B7280; cursor: pointer; padding: 0.2rem 0.5rem;" onclick="toggleChatHistoryPopover()">✕</span>
+              </div>
+              <div id="chat-history-list" style="display: flex; flex-direction: column; gap: 0.4rem;">
+                <!-- Populated dynamically by js/chat.js -->
+              </div>
+            </div>
           </div>
         </div>
 
@@ -106,6 +118,8 @@
     </main>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/supabase-config.js"></script>
   <script src="../js/api.js"></script>
   <script src="../js/mock-data.js"></script>
   <script src="../js/profile.js"></script>

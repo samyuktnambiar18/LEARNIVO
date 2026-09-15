@@ -1,40 +1,23 @@
 /* ==========================================================================
-   LEARNIVO — Subject AI Chat Controller (Powered by SNS Agent Workbench POST Webhook)
-   Primary Webhook: https://api.agents.snsihub.ai/webhook/4a662d25-cbee-4e03-8afb-ecb929b27719
+   LEARNIVO — Subject AI Chat Controller with Supabase Persistence
+   Powered by SNS Agent Workbench Webhook & Supabase Database Tables:
+   - public.chat_conversations
+   - public.chat_messages
    ========================================================================== */
+
+let currentSelectedSubject = 'Mathematics';
+let currentSelectedTopic = 'Quadratic Equations';
+let activeConversationId = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   initSubjectChatPage();
   initFloatingAIDrawer();
 });
 
-let currentSelectedSubject = 'Algebra';
-let currentSelectedTopic = 'Quadratic Equations';
-
-// Subject & Quick Questions mapping
-const SUBJECT_TOPICS = {
-  'Algebra': [
-    { name: 'Quadratic Equations', questions: ['What is the quadratic formula?', 'How to solve by factoring?', 'Explain the discriminant'] },
-    { name: 'Linear Systems', questions: ['How to solve 2x2 linear system?', 'What is elimination method?', 'Graphing linear functions'] },
-    { name: 'Polynomials', questions: ['How to factor polynomials?', 'What is synthetic division?', 'Polynomial roots theorem'] }
-  ],
-  'Geometry': [
-    { name: 'Angle Bisectors', questions: ['What is an angle bisector theorem?', 'Constructing angle bisectors', 'Incenter of triangle'] },
-    { name: 'Pythagorean Theorem', questions: ['Explain a² + b² = c²', 'What are Pythagorean triples?', '3D distance formula'] }
-  ],
-  'Trigonometry': [
-    { name: 'Trig Identities', questions: ['Explain sin²θ + cos²θ = 1', 'How to prove trig identities?', 'Double angle formulas'] }
-  ],
-  'Calculus': [
-    { name: 'Derivatives', questions: ['What is the derivative of sin(x)?', 'Explain the power rule', 'What is chain rule?'] },
-    { name: 'Limits Intro', questions: ['What is L’Hôpital’s rule?', 'How to evaluate 0/0 limit?', 'Continuous functions'] }
-  ],
-  'Statistics': [
-    { name: 'Standard Deviation', questions: ['How to calculate standard deviation?', 'Variance vs Standard Deviation', 'Normal distribution z-score'] }
-  ]
-};
-
-function initSubjectChatPage() {
+/**
+ * Initialize main Subject AI Chat view & Supabase conversation history
+ */
+async function initSubjectChatPage() {
   const chatMessages = document.getElementById('chat-messages');
   const chatForm = document.getElementById('chat-form');
   const chatInput = document.getElementById('chat-input-field');
@@ -43,10 +26,13 @@ function initSubjectChatPage() {
 
   if (!chatMessages || !chatForm) return;
 
-  // Render Subject Chips
+  // Render Subject Chips from enrolled student courses
   renderSubjectChips(subjectContainer, quickQuestionsContainer);
 
-  // Send Message Event
+  // Load existing conversation or initialize welcoming state
+  await loadInitialConversationForSubject(currentSelectedSubject);
+
+  // Handle Form Submission
   chatForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const text = chatInput.value.trim();
@@ -55,22 +41,17 @@ function initSubjectChatPage() {
     chatInput.value = '';
     await processUserQuestion(text, chatMessages, quickQuestionsContainer);
   });
-
-  // Initial Welcome Message
-  if (chatMessages.children.length === 0) {
-    addAIMessageToChat(
-      `### 👋 Welcome to Learnivo Subject AI Tutor!\n\nAsk me any question about **${currentSelectedSubject} (${currentSelectedTopic})** or select a different subject above.\n\n*All questions are processed via SNS Agent Workbench.*`,
-      chatMessages
-    );
-  }
 }
 
+/**
+ * Render subject selector chips based on student profile courses
+ */
 function renderSubjectChips(subjectContainer, quickQuestionsContainer) {
   if (!subjectContainer) return;
 
-  const student = getStoredStudent();
-  const courses = student.courses || window.DEFAULT_COURSES;
-  
+  const student = typeof getStoredStudent === 'function' ? getStoredStudent() : { courses: [] };
+  const courses = student.courses || window.DEFAULT_COURSES || [];
+
   if (courses.length > 0 && !courses.find(c => c.name === currentSelectedSubject)) {
     currentSelectedSubject = courses[0].name;
     const units = courses[0].units || [];
@@ -99,11 +80,14 @@ function getSubjectIcon(sub) {
   return '📖';
 }
 
-function selectChatSubject(sub) {
+/**
+ * Switch active subject tab
+ */
+async function selectChatSubject(sub) {
   currentSelectedSubject = sub;
-  const student = getStoredStudent();
+  const student = typeof getStoredStudent === 'function' ? getStoredStudent() : { courses: [] };
   const course = (student.courses || []).find(c => c.name === sub);
-  
+
   if (course && course.units && course.units.length > 0) {
     currentSelectedTopic = course.units[0].name;
   } else {
@@ -119,15 +103,48 @@ function selectChatSubject(sub) {
     topicBadge.textContent = `${currentSelectedSubject} • ${currentSelectedTopic}`;
   }
 
-  showToast(`Switched subject to ${sub}`, 'info');
+  showToast(`Switched to ${sub}`, 'info');
+
+  // Load subject-specific conversation from Supabase
+  await loadInitialConversationForSubject(sub);
 }
 
+/**
+ * Load the most recent conversation for a subject from Supabase or start fresh
+ */
+async function loadInitialConversationForSubject(subject) {
+  const chatMessages = document.getElementById('chat-messages');
+  if (!chatMessages) return;
+
+  if (window.learnivoSupabase) {
+    const convs = await window.learnivoSupabase.loadUserConversations(subject);
+    if (convs && convs.length > 0) {
+      const activeConv = convs[0];
+      activeConversationId = activeConv.id;
+      await renderConversationById(activeConv.id, activeConv.title);
+      return;
+    }
+  }
+
+  // Fallback / Initial blank state for new subject
+  activeConversationId = null;
+  chatMessages.innerHTML = '';
+  addAIMessageToChat(
+    `### 👋 Welcome to Learnivo Subject AI Tutor!\n\nAsk me any question about **${escapeHtml(currentSelectedSubject)} (${escapeHtml(currentSelectedTopic)})** or pick a question below.\n\n*Conversations are permanently saved to Supabase.*`,
+    chatMessages,
+    true
+  );
+}
+
+/**
+ * Render quick suggested questions
+ */
 function renderQuickQuestions(container) {
   if (!container) return;
 
-  const student = getStoredStudent();
+  const student = typeof getStoredStudent === 'function' ? getStoredStudent() : { courses: [] };
   const course = (student.courses || []).find(c => c.name === currentSelectedSubject);
-  
+
   let questions = [];
   if (course && course.units) {
     course.units.forEach(u => {
@@ -145,8 +162,8 @@ function renderQuickQuestions(container) {
     ];
   }
 
-  container.innerHTML = questions.slice(0, 5).map(q => `
-    <button class="quick-chip" onclick="askQuickQuestion('${escapeHtml(q)}')">${escapeHtml(q)}</button>
+  container.innerHTML = questions.slice(0, 4).map(q => `
+    <button type="button" class="quick-chip" onclick="askQuickQuestion('${escapeHtml(q)}')">${escapeHtml(q)}</button>
   `).join('');
 }
 
@@ -158,49 +175,99 @@ async function askQuickQuestion(questionText) {
   await processUserQuestion(questionText, chatMessages, quickQuestionsContainer);
 }
 
+/**
+ * Core Orchestrator: User Question -> Supabase Save -> AI Webhook -> Supabase Save -> Render UI
+ */
 async function processUserQuestion(questionText, chatMessages, quickQuestionsContainer) {
-  // 1. Append User Message
+  const student = typeof getStoredStudent === 'function' ? getStoredStudent() : { id: 'S001', name: 'Alex Morgan' };
+  const supabaseService = window.learnivoSupabase;
+
+  // 1. Get authenticated user
+  const currentUser = supabaseService ? await supabaseService.getCurrentUser() : { id: student.uuid || 'S001' };
+
+  // 2. If no active conversation, create a new row in chat_conversations
+  if (!activeConversationId && supabaseService) {
+    const newConv = await supabaseService.createConversation(
+      currentSelectedSubject,
+      currentSelectedTopic,
+      questionText
+    );
+    if (newConv && newConv.id) {
+      activeConversationId = newConv.id;
+    }
+  }
+
+  // 3. Save User message into chat_messages
+  if (activeConversationId && supabaseService) {
+    await supabaseService.saveMessage({
+      conversationId: activeConversationId,
+      userId: currentUser.id,
+      role: 'user',
+      content: questionText,
+      subject: currentSelectedSubject,
+      topic: currentSelectedTopic
+    });
+  }
+
+  // 4. Render User Message in UI
   addUserMessageToChat(questionText, chatMessages);
 
-  // 2. Show Typing Indicator
+  // 5. Display Typing Indicator
   const typingElem = showTypingIndicator(chatMessages);
 
-  // 3. Prepare Payload for SNS Agent Workbench POST Webhook
-  const student = getStoredStudent();
+  // 6. Send request to AI Backend (SNS Agent Workbench Webhook)
   const payload = {
     question: questionText,
     subject: currentSelectedSubject,
     topic: currentSelectedTopic,
     studentId: student.id || 'S001',
     studentName: student.name || 'Alex Morgan',
-    level: student.level || 'Intermediate'
+    level: student.grade || 'Grade 11'
   };
 
+  let aiReplyText = '';
+  let replyObj = null;
+
   try {
-    // 4. Send POST request via window.learnivoAPI
     const res = await window.learnivoAPI.sendSubjectChatQuestion(payload);
-
-    // Remove typing indicator
     removeTypingIndicator(typingElem);
-
-    // 5. Render AI Response
-    addAIMessageToChat(res.reply, chatMessages);
-
+    replyObj = res.reply;
+    aiReplyText = typeof replyObj === 'object' && replyObj !== null ? replyObj.text : String(replyObj || '');
   } catch (err) {
-    console.error('Error sending chat question:', err);
+    console.error('AI Webhook error, generating fallback answer:', err);
     removeTypingIndicator(typingElem);
-
-    const fallbackReply = window.learnivoAPI.generateLocalSubjectAnswer(payload);
-    addAIMessageToChat(fallbackReply, chatMessages);
+    replyObj = window.learnivoAPI.generateLocalSubjectAnswer(payload);
+    aiReplyText = typeof replyObj === 'object' && replyObj !== null ? replyObj.text : String(replyObj || '');
   }
+
+  // 7. Save AI response into chat_messages
+  if (activeConversationId && supabaseService) {
+    await supabaseService.saveMessage({
+      conversationId: activeConversationId,
+      userId: currentUser.id,
+      role: 'assistant',
+      content: aiReplyText,
+      subject: currentSelectedSubject,
+      topic: currentSelectedTopic
+    });
+  }
+
+  // 8. Render AI Message in UI
+  addAIMessageToChat(replyObj, chatMessages);
 }
 
-function addUserMessageToChat(text, container, skipSave = false) {
+/**
+ * Append User Message to UI
+ */
+function addUserMessageToChat(text, container) {
   const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const student = typeof getStoredStudent === 'function' ? getStoredStudent() : { name: 'Alex Morgan' };
+  const initials = student.name ? student.name.split(' ').map(n => n[0]).join('').slice(0, 2) : 'AM';
+
   const msgDiv = document.createElement('div');
   msgDiv.className = 'chat-message user-message';
   msgDiv.innerHTML = `
-    <div class="message-avatar">AM</div>
+    <div class="message-avatar">${escapeHtml(initials)}</div>
     <div class="message-bubble">
       <div>${escapeHtml(text)}</div>
       <div class="message-meta">
@@ -210,23 +277,14 @@ function addUserMessageToChat(text, container, skipSave = false) {
   `;
   container.appendChild(msgDiv);
   scrollToBottom(container);
-
-  // Save to Supabase DB & LocalStorage
-  if (!skipSave && window.learnivoSupabase && typeof window.learnivoSupabase.saveChatMessage === 'function') {
-    const student = getStoredStudent();
-    window.learnivoSupabase.saveChatMessage({
-      studentId: student.id || 'S001',
-      sender: 'user',
-      text: text,
-      subject: currentSelectedSubject,
-      topic: currentSelectedTopic
-    });
-  }
 }
 
-function addAIMessageToChat(replyData, container, skipSave = false) {
+/**
+ * Append AI Message to UI
+ */
+function addAIMessageToChat(replyData, container) {
   const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  const msgId = `msg-${Date.now()}`;
+  const msgId = `msg-${Date.now()}-${Math.floor(Math.random()*1000)}`;
 
   let textContent = '';
   let videoTitle = '';
@@ -242,7 +300,6 @@ function addAIMessageToChat(replyData, container, skipSave = false) {
     textContent = String(replyData || '');
   }
 
-  // Extract video ID from URL or text content if embed URL exists inside markdown text
   if (!videoId && (videoUrl || textContent)) {
     const stringToSearch = videoUrl || textContent;
     const match = stringToSearch.match(/(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
@@ -254,40 +311,29 @@ function addAIMessageToChat(replyData, container, skipSave = false) {
 
   let formattedHTML = parseMarkdownToHTML(textContent);
 
-  // Render Recommended Learning Resource Card if video URL or Video ID is returned by Webhook
   if (videoUrl || videoId) {
     const displayTitle = videoTitle || 'Recommended Learning Video';
     const finalWatchUrl = videoUrl || `https://www.youtube.com/watch?v=${videoId}`;
 
     formattedHTML += `
-      <div class="recommended-resource-card">
-        <div class="resource-card-header">
-          <span class="resource-icon">🎥</span>
-          <span>Recommended Learning Resource</span>
+      <div class="recommended-resource-card" style="margin-top: 0.8rem; background: #FAF9FF; border: 1px solid #E2DDF5; border-radius: 12px; padding: 0.85rem;">
+        <div style="font-weight: 700; font-size: 0.88rem; color: #6D3FEA; margin-bottom: 0.4rem; display: flex; align-items: center; gap: 0.4rem;">
+          <span>🎥</span> <span>Recommended Learning Resource</span>
         </div>
-        
-        <div class="resource-card-body">
-          <h4 class="resource-title">${escapeHtml(displayTitle)}</h4>
-          
-          ${videoId ? `
-          <div class="resource-video-wrapper">
-            <iframe 
-              src="https://www.youtube.com/embed/${videoId}?rel=0" 
-              title="${escapeHtml(displayTitle)}" 
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-              allowfullscreen>
-            </iframe>
-          </div>
-          ` : `
-          <div class="resource-thumbnail-box">
-            <img src="https://img.youtube.com/vi/${videoId}/hqdefault.jpg" alt="${escapeHtml(displayTitle)}" class="resource-thumbnail-img" onerror="this.style.display='none'">
-          </div>
-          `}
+        <h4 style="font-size: 0.95rem; margin: 0 0 0.5rem 0; color: #1A1638;">${escapeHtml(displayTitle)}</h4>
+        ${videoId ? `
+        <div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 8px; margin-bottom: 0.5rem;">
+          <iframe 
+            src="https://www.youtube.com/embed/${videoId}?rel=0" 
+            title="${escapeHtml(displayTitle)}" 
+            style="position: absolute; top:0; left:0; width:100%; height:100%; border:0;" 
+            allowfullscreen>
+          </iframe>
         </div>
-
-        <div class="resource-card-footer">
-          <a href="${finalWatchUrl}" target="_blank" rel="noopener noreferrer" class="btn-watch-youtube">
-            <span>▶</span> Watch on YouTube
+        ` : ''}
+        <div>
+          <a href="${finalWatchUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="font-size: 0.78rem;">
+            ▶ Watch on YouTube
           </a>
         </div>
       </div>
@@ -300,32 +346,137 @@ function addAIMessageToChat(replyData, container, skipSave = false) {
     <div class="message-avatar">✨</div>
     <div class="message-bubble" id="${msgId}">
       <div class="markdown-body">${formattedHTML}</div>
-      <div class="message-meta">
-        <span>SNS Agent Workbench • ${timeStr}</span>
-        <div class="message-actions">
-          <button class="msg-action-btn" onclick="copyMessageText('${msgId}')" title="Copy response">📋 Copy</button>
-          <button class="msg-action-btn" onclick="speakMessageText('${msgId}')" title="Listen response">🔊 Speak</button>
+      <div class="message-meta" style="margin-top: 0.4rem; display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 0.75rem; color: #6B7280;">SNS Agent Workbench • ${timeStr}</span>
+        <div style="display: flex; gap: 0.3rem;">
+          <button type="button" class="msg-action-btn" onclick="copyMessageText('${msgId}')" title="Copy response">📋 Copy</button>
+          <button type="button" class="msg-action-btn" onclick="speakMessageText('${msgId}')" title="Listen response">🔊 Speak</button>
         </div>
       </div>
     </div>
   `;
   container.appendChild(msgDiv);
   scrollToBottom(container);
+}
 
-  // Save to Supabase DB & LocalStorage
-  if (!skipSave && window.learnivoSupabase && typeof window.learnivoSupabase.saveChatMessage === 'function') {
-    const student = getStoredStudent();
-    window.learnivoSupabase.saveChatMessage({
-      studentId: student.id || 'S001',
-      sender: 'ai',
-      text: textContent,
-      title: videoTitle,
-      videoUrl: videoUrl,
-      videoId: videoId,
-      subject: currentSelectedSubject,
-      topic: currentSelectedTopic
+/**
+ * RESET CHAT BUTTON ACTION:
+ * Starts a new conversation session WITHOUT deleting old conversations from Supabase!
+ */
+async function resetSubjectChat() {
+  activeConversationId = null;
+  const chatMessages = document.getElementById('chat-messages');
+  if (!chatMessages) return;
+
+  chatMessages.innerHTML = '';
+  addAIMessageToChat(
+    `### 🔄 New Chat Session Started\n\nAsk any question about **${escapeHtml(currentSelectedSubject)}** to start a new discussion.\n\n*Your previous conversations remain safely saved in Supabase history.*`,
+    chatMessages
+  );
+
+  showToast('Started new chat conversation', 'success');
+}
+
+/**
+ * Render all messages of a specific conversation from Supabase database
+ */
+async function renderConversationById(conversationId, convTitle = '') {
+  const chatMessages = document.getElementById('chat-messages');
+  if (!chatMessages || !window.learnivoSupabase) return;
+
+  chatMessages.innerHTML = '';
+
+  const messages = await window.learnivoSupabase.loadConversationMessages(conversationId);
+
+  if (messages && messages.length > 0) {
+    messages.forEach(msg => {
+      if (msg.role === 'user') {
+        addUserMessageToChat(msg.content, chatMessages);
+      } else {
+        addAIMessageToChat(msg.content, chatMessages);
+      }
     });
+  } else {
+    addAIMessageToChat(
+      `### 💬 ${escapeHtml(convTitle || currentSelectedSubject)}\n\nContinuing conversation from Supabase...`,
+      chatMessages
+    );
   }
+}
+
+/**
+ * CONVERSATION HISTORY POPOVER CONTROLLER:
+ * Allows user to inspect and open previous stored conversations
+ */
+async function toggleChatHistoryPopover() {
+  const popover = document.getElementById('chat-history-popover');
+  if (!popover) return;
+
+  if (popover.style.display === 'none' || !popover.style.display) {
+    popover.style.display = 'block';
+    await renderChatHistoryList();
+  } else {
+    popover.style.display = 'none';
+  }
+}
+
+async function renderChatHistoryList() {
+  const listContainer = document.getElementById('chat-history-list');
+  if (!listContainer || !window.learnivoSupabase) return;
+
+  listContainer.innerHTML = '<span style="font-size: 0.8rem; color: #6B7280; padding: 0.5rem;">Loading history...</span>';
+
+  const conversations = await window.learnivoSupabase.loadUserConversations();
+
+  if (!conversations || conversations.length === 0) {
+    listContainer.innerHTML = '<span style="font-size: 0.8rem; color: #6B7280; padding: 0.5rem;">No previous conversations found. Start chatting!</span>';
+    return;
+  }
+
+  listContainer.innerHTML = conversations.map(c => {
+    const isAct = c.id === activeConversationId;
+    const dateStr = formatDateLabel(c.updated_at || c.created_at);
+    return `
+      <div 
+        onclick="selectHistoryConversation('${escapeHtml(c.id)}', '${escapeHtml(c.subject)}')" 
+        style="padding: 0.5rem 0.6rem; border-radius: 8px; background: ${isAct ? '#EFEAFB' : '#FAF9FF'}; border: 1px solid ${isAct ? '#6D3FEA' : '#E2DDF5'}; cursor: pointer; transition: all 0.2s ease;"
+      >
+        <div style="font-weight: 700; font-size: 0.84rem; color: #1A1638; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+          ${escapeHtml(c.title || 'Conversation')}
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.25rem;">
+          <span style="font-size: 0.72rem; background: #EFEAFB; color: #6D3FEA; padding: 0.1rem 0.4rem; border-radius: 4px; font-weight: 600;">
+            ${escapeHtml(c.subject || 'General')}
+          </span>
+          <span style="font-size: 0.7rem; color: #6B7280;">${dateStr}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function selectHistoryConversation(convId, subject) {
+  activeConversationId = convId;
+  if (subject && subject !== currentSelectedSubject) {
+    currentSelectedSubject = subject;
+    const subjectContainer = document.getElementById('subject-chips-container');
+    const quickQuestionsContainer = document.getElementById('quick-questions-chips');
+    renderSubjectChips(subjectContainer, quickQuestionsContainer);
+  }
+
+  toggleChatHistoryPopover();
+  showToast('Loaded conversation from Supabase', 'info');
+  await renderConversationById(convId);
+}
+
+function formatDateLabel(isoString) {
+  if (!isoString) return 'Today';
+  const d = new Date(isoString);
+  const now = new Date();
+  const diffDays = Math.floor((now - d) / (1000 * 60 * 60 * 24));
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
 function showTypingIndicator(container) {
@@ -358,24 +509,20 @@ function scrollToBottom(container) {
 
 function parseMarkdownToHTML(text) {
   if (!text) return '';
-
-  let html = text
+  return text
     .replace(/^### (.*$)/gim, '<h3 style="font-size: 1.15rem; margin-top: 0.5rem; margin-bottom: 0.5rem;">$1</h3>')
     .replace(/^## (.*$)/gim, '<h2 style="font-size: 1.3rem; margin-top: 0.6rem; margin-bottom: 0.6rem;">$1</h2>')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/\$\$(.*?)\$\$/gs, '<div style="background: var(--bg-tertiary); padding: 0.5rem 1rem; border-radius: 8px; margin: 0.5rem 0; font-family: var(--font-number); font-weight: 700; color: var(--primary-purple); font-size: 1.05rem;">$$ $1 $$</div>')
-    .replace(/\$(.*?)\$/g, '<code style="background: var(--bg-purple-light); color: var(--primary-purple); padding: 0.15rem 0.4rem; border-radius: 4px; font-weight: 600;">$1</code>')
+    .replace(/\$\$(.*?)\$\$/gs, '<div style="background: #FAF9FF; padding: 0.5rem 1rem; border-radius: 8px; margin: 0.5rem 0; font-family: var(--font-number); font-weight: 700; color: #6D3FEA; font-size: 1.05rem;">$$ $1 $$</div>')
+    .replace(/\$(.*?)\$/g, '<code style="background: #EFEAFB; color: #6D3FEA; padding: 0.15rem 0.4rem; border-radius: 4px; font-weight: 600;">$1</code>')
     .replace(/\n\n/g, '<br><br>')
     .replace(/- (.*$)/gim, '• $1<br>');
-
-  return html;
 }
 
 function copyMessageText(msgId) {
   const elem = document.getElementById(msgId);
   if (!elem) return;
-
   const text = elem.querySelector('.markdown-body').innerText;
   navigator.clipboard.writeText(text).then(() => {
     showToast('Copied to clipboard!', 'success');
@@ -387,7 +534,6 @@ function copyMessageText(msgId) {
 function speakMessageText(msgId) {
   const elem = document.getElementById(msgId);
   if (!elem) return;
-
   const text = elem.querySelector('.markdown-body').innerText;
   if ('speechSynthesis' in window) {
     window.speechSynthesis.cancel();
@@ -401,7 +547,7 @@ function speakMessageText(msgId) {
 }
 
 function escapeHtml(str) {
-  return String(str)
+  return String(str || '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -409,79 +555,22 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
-/* ==========================================================================
-   FLOATING QUICK AI DRAWER INTEGRATION
-   ========================================================================== */
+/* Floating AI Drawer */
 function initFloatingAIDrawer() {
   const drawer = document.getElementById('floating-ai-drawer');
   const triggerBtn = document.getElementById('floating-ai-trigger-btn');
   const closeBtn = document.getElementById('close-drawer-btn');
-  const drawerForm = document.getElementById('drawer-chat-form');
-  const drawerInput = document.getElementById('drawer-chat-input');
-  const drawerMessages = document.getElementById('drawer-chat-messages');
-
   if (!triggerBtn || !drawer) return;
 
-  triggerBtn.addEventListener('click', () => {
-    drawer.classList.toggle('open');
-  });
-
-  if (closeBtn) {
-    closeBtn.addEventListener('click', () => {
-      drawer.classList.remove('open');
-    });
-  }
-
-  if (drawerForm && drawerInput && drawerMessages) {
-    drawerForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const question = drawerInput.value.trim();
-      if (!question) return;
-
-      drawerInput.value = '';
-
-      // User Message in Drawer
-      const userDiv = document.createElement('div');
-      userDiv.className = 'chat-message user-message';
-      userDiv.innerHTML = `
-        <div class="message-bubble" style="padding: 0.75rem 1rem; font-size: 0.88rem;">${escapeHtml(question)}</div>
-      `;
-      drawerMessages.appendChild(userDiv);
-      drawerMessages.scrollTop = drawerMessages.scrollHeight;
-
-      // Typing Indicator
-      const typingDiv = document.createElement('div');
-      typingDiv.className = 'chat-message ai-message';
-      typingDiv.innerHTML = `
-        <div class="message-bubble" style="padding: 0.75rem 1rem;">
-          <div class="typing-indicator">
-            <div class="typing-dot"></div>
-            <div class="typing-dot"></div>
-            <div class="typing-dot"></div>
-          </div>
-        </div>
-      `;
-      drawerMessages.appendChild(typingDiv);
-      drawerMessages.scrollTop = drawerMessages.scrollHeight;
-
-      const student = getStoredStudent();
-      const payload = {
-        question,
-        subject: currentSelectedSubject,
-        topic: currentSelectedTopic,
-        studentId: student.id || 'S001',
-        studentName: student.name || 'Alex Morgan'
-      };
-
-      try {
-        const res = await window.learnivoAPI.sendSubjectChatQuestion(payload);
-        typingDiv.remove();
-
-        addAIMessageToChat(res.reply, drawerMessages);
-      } catch (err) {
-        typingDiv.remove();
-        addAIMessageToChat(window.learnivoAPI.generateLocalSubjectAnswer(payload), drawerMessages);
-      }
-    });
-  }
+  triggerBtn.addEventListener('click', () => drawer.classList.toggle('open'));
+  if (closeBtn) closeBtn.addEventListener('click', () => drawer.classList.remove('open'));
 }
+
+// Expose functions globally for UI buttons
+window.resetSubjectChat = resetSubjectChat;
+window.toggleChatHistoryPopover = toggleChatHistoryPopover;
+window.selectHistoryConversation = selectHistoryConversation;
+window.selectChatSubject = selectChatSubject;
+window.askQuickQuestion = askQuickQuestion;
+window.copyMessageText = copyMessageText;
+window.speakMessageText = speakMessageText;
