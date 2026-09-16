@@ -104,6 +104,7 @@ export interface ChatMessage {
   videoUrl?: string;
   youtubeId?: string;
   videos?: VideoRecommendation[];
+  magicViewData?: MagicViewData;
 }
 
 export interface VideoRecommendation {
@@ -123,3 +124,64 @@ export interface AdaptiveLearningResult {
   recommendedFocus: string[];
   suggestedDifficulty: 'Easy' | 'Medium' | 'Hard';
 }
+
+export interface MagicViewStep {
+  step_number: number;
+  title: string;
+  description: string;
+  active_elements?: string[];
+  highlight_color?: string;
+}
+
+export interface MagicViewElement {
+  id: string;
+  label: string;
+  type?: 'node' | 'box' | 'circle' | 'text' | 'bar' | 'array_item' | 'step_card' | 'shape' | string;
+  position?: { x?: number; y?: number };
+  value?: string | number;
+  color?: string;
+  state?: 'active' | 'highlighted' | 'dimmed' | 'normal' | string;
+  details?: string;
+}
+
+export interface MagicViewConnection {
+  from: string;
+  to: string;
+  label?: string;
+  type?: 'arrow' | 'line' | 'dashed' | string;
+  color?: string;
+}
+
+export interface MagicViewAnimation {
+  step?: number;
+  action?: 'appear' | 'highlight' | 'move' | 'connect' | 'compare' | string;
+  target_ids?: string[];
+  description?: string;
+}
+
+export interface MagicViewInteraction {
+  id?: string;
+  type?: string;
+  target?: string;
+  action_description?: string;
+}
+
+export interface MagicViewData {
+  title: string;
+  concept: string;
+  visual_type: string;
+  summary: string;
+  steps: MagicViewStep[];
+  elements: MagicViewElement[];
+  connections: MagicViewConnection[];
+  animations: MagicViewAnimation[];
+  interactions: MagicViewInteraction[];
+  key_takeaway: string;
+}
+
+export interface MagicViewResult {
+  success: boolean;
+  action: string;
+  data: MagicViewData;
+}
+
