@@ -149,13 +149,14 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
           const errorMessage: ChatMessage = {
             id: 'msg_err_' + Date.now(),
             sender: 'ai',
-            text: magicResult.errorMessage || "Magic View couldn't generate the visualization right now. Please try again.",
+            text: magicResult.errorMessage || "Magic View is temporarily unavailable. Please try again.",
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             suggestedFollowups: [`Retry Magic View for "${cleanQuery}"`]
           };
           setMessages([...updated, errorMessage]);
           return;
         }
+
 
         const aiMessage: ChatMessage = {
           id: 'msg_magic_' + Date.now(),
