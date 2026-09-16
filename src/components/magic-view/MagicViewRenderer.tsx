@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, SkipBack, SkipForward, RotateCcw, Sparkles, CheckCircle2, ArrowRight, Layers, Info } from 'lucide-react';
-import { MagicViewData, MagicViewStep, MagicViewElement, MagicViewConnection } from '../../types';
+import { MagicViewData, MagicViewStep, MagicViewElement, MagicViewConnection, MagicViewAnimation } from '../../types';
 import { Button } from '../ui/Button';
 
 interface MagicViewRendererProps {
@@ -8,19 +8,44 @@ interface MagicViewRendererProps {
 }
 
 export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) => {
-  const steps = data.steps && data.steps.length > 0 ? data.steps : buildDefaultSteps(data);
+  const steps = data.steps && data.steps.length > 0 ? data.steps : [];
   const elements = data.elements || [];
   const connections = data.connections || [];
+  const animations = data.animations || [];
 
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
+
   const playTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const activeStep: MagicViewStep | undefined = steps[currentStepIndex];
 
-  // Handle Auto Play timer
+  // Map element IDs to element objects for high performance lookup
+  const elementsMap: Record<string, MagicViewElement> = {};
+  elements.forEach((e) => {
+    elementsMap[e.id] = e;
+  });
+
+  // Determine active elements for current step
+  const activeElementIds = new Set<string>();
+  if (activeStep?.active_elements && activeStep.active_elements.length > 0) {
+    activeStep.active_elements.forEach((id) => activeElementIds.add(id));
+  } else if (elements.length > 0) {
+    const activeElem = elements[currentStepIndex % elements.length];
+    if (activeElem) activeElementIds.add(activeElem.id);
+  }
+
+  // Also include current step animation targets
+  animations.forEach((anim) => {
+    if (anim.step === (activeStep?.step_number || currentStepIndex + 1) && anim.target_ids) {
+      anim.target_ids.forEach((id) => activeElementIds.add(id));
+    }
+  });
+
+  // Auto-play timer handler
   useEffect(() => {
-    if (isPlaying) {
+    if (isPlaying && steps.length > 1) {
       playTimerRef.current = setInterval(() => {
         setCurrentStepIndex((prev) => {
           if (prev >= steps.length - 1) {
@@ -56,6 +81,7 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
   const handleReset = () => {
     setIsPlaying(false);
     setCurrentStepIndex(0);
+    setSelectedElementId(null);
   };
 
   const togglePlay = () => {
@@ -65,22 +91,14 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
     setIsPlaying(!isPlaying);
   };
 
-  // Determine active elements for current step
-  const activeElementIds = new Set<string>();
-  if (activeStep?.active_elements && activeStep.active_elements.length > 0) {
-    activeStep.active_elements.forEach((id) => activeElementIds.add(id));
-  } else if (elements.length > 0) {
-    // If step doesn't explicitly list elements, highlight corresponding index or all
-    const elemToHighlight = elements[currentStepIndex % elements.length];
-    if (elemToHighlight) activeElementIds.add(elemToHighlight.id);
-  }
+  const selectedElement = selectedElementId ? elementsMap[selectedElementId] : null;
 
   return (
-    <div className="surface-card border border-[#C7FF4A]/30 rounded-2xl overflow-hidden shadow-2xl bg-[#0B0A0F] text-[#F7F5FA] my-4 transition-all">
+    <div className="surface-card border border-[#C7FF4A]/40 rounded-2xl overflow-hidden shadow-2xl bg-[#0B0A0F] text-[#F7F5FA] my-4 transition-all">
       {/* Header Banner */}
       <div className="p-4 sm:p-5 bg-gradient-to-r from-[#181620] via-[#121118] to-[#181620] border-b border-white/10 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-[#C7FF4A]/15 border border-[#C7FF4A]/40 flex items-center justify-center text-[#C7FF4A] shadow-[0_0_12px_rgba(199,255,74,0.25)]">
+          <div className="w-9 h-9 rounded-xl bg-[#C7FF4A]/15 border border-[#C7FF4A]/40 flex items-center justify-center text-[#C7FF4A] shadow-[0_0_14px_rgba(199,255,74,0.3)]">
             <Sparkles className="w-5 h-5 animate-pulse" />
           </div>
           <div>
@@ -88,7 +106,7 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
               <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#C7FF4A] bg-[#C7FF4A]/10 px-2 py-0.5 rounded border border-[#C7FF4A]/20">
                 ✨ MAGIC VIEW
               </span>
-              <span className="text-[10px] text-[#A6A1B2] capitalize">
+              <span className="text-[10px] text-[#A6A1B2] capitalize bg-white/5 px-2 py-0.5 rounded">
                 {data.visual_type.replace(/_/g, ' ')}
               </span>
             </div>
@@ -105,67 +123,103 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
         )}
       </div>
 
-      {/* Main Content Area */}
+      {/* Main Container */}
       <div className="p-4 sm:p-6 space-y-6">
-        {/* Summary Banner if available */}
+        {/* Summary Description */}
         {data.summary && (
           <p className="text-xs sm:text-sm text-[#A6A1B2] leading-relaxed bg-[#121118] p-3.5 rounded-xl border border-white/5">
             {data.summary}
           </p>
         )}
 
-        {/* Visualization Grid / Canvas */}
+        {/* Responsive Visualization & Explanation Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Visual Canvas (Left / Top 7 cols) */}
-          <div className="lg:col-span-7 bg-[#121118] p-5 rounded-xl border border-white/10 flex flex-col justify-center min-h-[300px] relative overflow-hidden">
-            <RenderVisualCanvas
-              visualType={data.visual_type}
+          {/* 1200 x 700 Vector SVG Canvas (Left 7 Columns) */}
+          <div className="lg:col-span-7 bg-[#121118] p-3 sm:p-4 rounded-xl border border-white/10 flex flex-col justify-center min-h-[350px] relative overflow-hidden">
+            <MagicSvgCanvas
               elements={elements}
               connections={connections}
+              elementsMap={elementsMap}
               activeElementIds={activeElementIds}
-              currentStepIndex={currentStepIndex}
-              highlightColor={activeStep?.highlight_color || '#C7FF4A'}
+              selectedElementId={selectedElementId}
+              onSelectElement={(id) => setSelectedElementId(id)}
             />
           </div>
 
-          {/* Step Explanation Card (Right / Bottom 5 cols) */}
+          {/* Steps & Controls Panel (Right 5 Columns) */}
           <div className="lg:col-span-5 flex flex-col justify-between space-y-4">
-            {activeStep && (
-              <div className="bg-[#181620] p-5 rounded-xl border border-white/10 flex-1 flex flex-col">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="w-6 h-6 rounded-full bg-[#C7FF4A] text-[#0B0A0F] font-bold text-xs flex items-center justify-center">
-                    {activeStep.step_number}
-                  </span>
-                  <h4 className="text-sm font-bold text-[#F7F5FA]">
-                    {activeStep.title}
-                  </h4>
+            {/* Active Step Card */}
+            {activeStep ? (
+              <div className="bg-[#181620] p-5 rounded-xl border border-white/10 flex-1 flex flex-col justify-between">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-7 h-7 rounded-full bg-[#C7FF4A] text-[#0B0A0F] font-bold text-xs flex items-center justify-center shadow-md">
+                      {activeStep.step_number}
+                    </span>
+                    <h4 className="text-sm font-bold text-[#F7F5FA]">
+                      {activeStep.title}
+                    </h4>
+                  </div>
+
+                  <p className="text-xs sm:text-sm text-[#A6A1B2] leading-relaxed">
+                    {activeStep.description}
+                  </p>
                 </div>
 
-                <p className="text-xs sm:text-sm text-[#A6A1B2] leading-relaxed flex-1">
-                  {activeStep.description}
-                </p>
+                {/* Clicked Element Details Inspector */}
+                {selectedElement && (
+                  <div className="mt-4 p-3 rounded-lg bg-[#121118] border border-[#8B5CF6]/40 text-xs space-y-1">
+                    <div className="flex items-center justify-between text-[#8B5CF6] font-bold">
+                      <span className="flex items-center gap-1">
+                        <Info className="w-3.5 h-3.5" />
+                        Selected Element: {selectedElement.label}
+                      </span>
+                      <button
+                        onClick={() => setSelectedElementId(null)}
+                        className="text-[10px] text-[#A6A1B2] hover:text-white"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                    {selectedElement.value && (
+                      <p className="text-[11px] text-[#F7F5FA] font-mono">
+                        Value: {selectedElement.value}
+                      </p>
+                    )}
+                    {selectedElement.details && (
+                      <p className="text-[11px] text-[#A6A1B2]">
+                        {selectedElement.details}
+                      </p>
+                    )}
+                  </div>
+                )}
 
-                {/* Steps Navigation Dots */}
+                {/* Steps Selector Progress Bar */}
                 {steps.length > 1 && (
                   <div className="flex items-center gap-1.5 mt-4 pt-3 border-t border-white/10">
-                    {steps.map((_, idx) => (
+                    {steps.map((s, idx) => (
                       <button
                         key={idx}
                         onClick={() => { setIsPlaying(false); setCurrentStepIndex(idx); }}
-                        className={`h-2 rounded-full transition-all ${
+                        className={`h-2.5 rounded-full transition-all ${
                           idx === currentStepIndex
-                            ? 'w-6 bg-[#C7FF4A]'
-                            : 'w-2 bg-white/20 hover:bg-white/40'
+                            ? 'w-8 bg-[#C7FF4A] shadow-[0_0_8px_rgba(199,255,74,0.6)]'
+                            : 'w-2.5 bg-white/20 hover:bg-white/40'
                         }`}
-                        title={`Go to step ${idx + 1}`}
+                        title={`Jump to Step ${s.step_number}: ${s.title}`}
                       />
                     ))}
                   </div>
                 )}
               </div>
+            ) : (
+              <div className="bg-[#181620] p-5 rounded-xl border border-white/10 text-center py-8">
+                <Layers className="w-8 h-8 text-[#A6A1B2] mx-auto mb-2" />
+                <p className="text-xs text-[#A6A1B2]">Visualizing concept elements...</p>
+              </div>
             )}
 
-            {/* Interactive Control Buttons */}
+            {/* Animation Controls */}
             {steps.length > 1 && (
               <div className="flex items-center justify-between gap-2 p-3 bg-[#121118] rounded-xl border border-white/10">
                 <Button
@@ -183,7 +237,7 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
                   variant="primary"
                   size="sm"
                   onClick={togglePlay}
-                  className="text-xs min-w-[100px]"
+                  className="text-xs min-w-[105px]"
                 >
                   {isPlaying ? (
                     <>
@@ -213,7 +267,7 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
                   variant="outline"
                   size="sm"
                   onClick={handleReset}
-                  title="Reset to beginning"
+                  title="Reset to step 1"
                   className="px-2.5"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
@@ -223,7 +277,7 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
           </div>
         </div>
 
-        {/* Key Takeaway Callout */}
+        {/* Key Takeaway Banner */}
         {data.key_takeaway && (
           <div className="p-4 rounded-xl bg-gradient-to-r from-[#C7FF4A]/10 via-[#181620] to-[#8B5CF6]/10 border border-[#C7FF4A]/30 flex items-start gap-3">
             <CheckCircle2 className="w-5 h-5 text-[#C7FF4A] flex-shrink-0 mt-0.5" />
@@ -243,222 +297,311 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
 };
 
 // ============================================================================
-// VISUAL CANVAS RENDERER COMPONENT
-// Supports: Flowchart, Process, Timeline, Array, Comparison, Hierarchy, etc.
+// SVG CANVAS COMPONENT (1200 x 700 viewBox)
+// Renders elements (box, circle, text, formula, arrow, image_placeholder, node)
+// Renders connections with directional SVG arrows & labels
 // ============================================================================
 
-interface RenderVisualCanvasProps {
-  visualType: string;
+interface MagicSvgCanvasProps {
   elements: MagicViewElement[];
   connections: MagicViewConnection[];
+  elementsMap: Record<string, MagicViewElement>;
   activeElementIds: Set<string>;
-  currentStepIndex: number;
-  highlightColor: string;
+  selectedElementId: string | null;
+  onSelectElement: (id: string) => void;
 }
 
-const RenderVisualCanvas: React.FC<RenderVisualCanvasProps> = ({
-  visualType,
+const MagicSvgCanvas: React.FC<MagicSvgCanvasProps> = ({
   elements,
   connections,
+  elementsMap,
   activeElementIds,
-  currentStepIndex,
-  highlightColor,
+  selectedElementId,
+  onSelectElement,
 }) => {
-  const vType = (visualType || 'process').toLowerCase();
-
-  // Mode 1: Array / Algorithm / Sequential Items
-  if (vType.includes('algorithm') || vType.includes('array') || elements.some((e) => e.type === 'array_item')) {
-    return (
-      <div className="space-y-6 text-center py-4">
-        <div className="flex flex-wrap items-center justify-center gap-3">
-          {elements.map((elem, idx) => {
-            const isActive = activeElementIds.has(elem.id) || idx === currentStepIndex;
-            return (
-              <div key={elem.id || idx} className="flex flex-col items-center gap-1.5 transition-all duration-300">
-                <span className="text-[10px] text-[#A6A1B2] font-mono">idx {idx}</span>
-                <div
-                  className={`w-14 h-14 rounded-xl flex items-center justify-center text-base font-bold transition-all duration-300 ${
-                    isActive
-                      ? 'bg-[#C7FF4A] text-[#0B0A0F] scale-110 shadow-[0_0_20px_rgba(199,255,74,0.5)] border-2 border-white'
-                      : 'bg-[#181620] text-[#F7F5FA] border border-white/15'
-                  }`}
-                >
-                  {elem.value !== undefined ? elem.value : elem.label}
-                </div>
-                <span className={`text-[11px] font-medium max-w-[80px] truncate ${isActive ? 'text-[#C7FF4A]' : 'text-[#A6A1B2]'}`}>
-                  {elem.label}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
-  // Mode 2: Flowchart / Process / Cycle / Hierarchy / Network
-  if (
-    vType.includes('flowchart') ||
-    vType.includes('process') ||
-    vType.includes('cycle') ||
-    vType.includes('hierarchy') ||
-    vType.includes('mind') ||
-    vType.includes('network') ||
-    connections.length > 0
-  ) {
-    return (
-      <div className="space-y-4 py-2">
-        <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6">
-          {elements.map((elem, idx) => {
-            const isActive = activeElementIds.has(elem.id) || idx === currentStepIndex;
-            const hasArrow = idx < elements.length - 1;
-
-            return (
-              <React.Fragment key={elem.id || idx}>
-                <div
-                  className={`p-4 rounded-xl border transition-all duration-300 flex flex-col items-center text-center min-w-[120px] max-w-[180px] ${
-                    isActive
-                      ? 'bg-[#8B5CF6]/20 border-[#C7FF4A] shadow-[0_0_18px_rgba(199,255,74,0.3)] scale-105'
-                      : 'bg-[#181620] border-white/15 text-[#A6A1B2]'
-                  }`}
-                >
-                  <span className={`text-xs font-bold mb-1 ${isActive ? 'text-[#C7FF4A]' : 'text-[#F7F5FA]'}`}>
-                    {elem.label}
-                  </span>
-                  {elem.value && (
-                    <span className="text-[11px] text-[#A6A1B2] bg-black/40 px-2 py-0.5 rounded mt-1 font-mono">
-                      {elem.value}
-                    </span>
-                  )}
-                  {elem.details && (
-                    <span className="text-[10px] text-[#A6A1B2] mt-1.5 line-clamp-2">
-                      {elem.details}
-                    </span>
-                  )}
-                </div>
-
-                {hasArrow && (
-                  <div className="text-[#C7FF4A] flex items-center justify-center">
-                    <ArrowRight className="w-5 h-5 animate-pulse" />
-                  </div>
-                )}
-              </React.Fragment>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
-  // Mode 3: Timeline / Steps sequence
-  if (vType.includes('timeline') || vType.includes('step')) {
-    return (
-      <div className="space-y-4 py-2">
-        <div className="relative border-l-2 border-[#C7FF4A]/30 ml-4 space-y-6">
-          {elements.map((elem, idx) => {
-            const isActive = activeElementIds.has(elem.id) || idx === currentStepIndex;
-            return (
-              <div key={elem.id || idx} className="relative pl-6">
-                <div
-                  className={`absolute -left-[9px] top-1 w-4 h-4 rounded-full border-2 transition-all ${
-                    isActive
-                      ? 'bg-[#C7FF4A] border-white shadow-[0_0_10px_rgba(199,255,74,0.6)]'
-                      : 'bg-[#121118] border-white/30'
-                  }`}
-                />
-                <div className={`p-3 rounded-xl border ${isActive ? 'bg-[#181620] border-[#C7FF4A] text-[#F7F5FA]' : 'bg-[#121118] border-white/10 text-[#A6A1B2]'}`}>
-                  <h5 className={`text-xs font-bold ${isActive ? 'text-[#C7FF4A]' : 'text-[#F7F5FA]'}`}>
-                    {elem.label}
-                  </h5>
-                  {elem.details && <p className="text-[11px] text-[#A6A1B2] mt-1">{elem.details}</p>}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
-  // Mode 4: Comparison
-  if (vType.includes('comparison')) {
-    return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
-        {elements.map((elem, idx) => {
-          const isActive = activeElementIds.has(elem.id) || idx === currentStepIndex;
-          return (
-            <div
-              key={elem.id || idx}
-              className={`p-4 rounded-xl border transition-all ${
-                isActive
-                  ? 'bg-[#181620] border-[#C7FF4A] shadow-[0_0_16px_rgba(199,255,74,0.25)]'
-                  : 'bg-[#121118] border-white/10 text-[#A6A1B2]'
-              }`}
-            >
-              <h5 className={`text-sm font-bold mb-2 ${isActive ? 'text-[#C7FF4A]' : 'text-[#F7F5FA]'}`}>
-                {elem.label}
-              </h5>
-              {elem.value && (
-                <div className="text-xl font-extrabold text-[#8B5CF6] mb-2">{elem.value}</div>
-              )}
-              {elem.details && <p className="text-xs text-[#A6A1B2] leading-relaxed">{elem.details}</p>}
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-
-  // Default Canvas: Render Grid Cards for Elements
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 py-2">
-      {elements.map((elem, idx) => {
-        const isActive = activeElementIds.has(elem.id) || idx === currentStepIndex;
+    <svg
+      viewBox="0 0 1200 700"
+      className="w-full h-auto max-h-[550px] aspect-[1200/700] rounded-xl overflow-visible select-none transition-all"
+    >
+      <defs>
+        {/* SVG Arrowhead Marker Definitions */}
+        <marker
+          id="arrow-forward"
+          viewBox="0 0 10 10"
+          refX="8"
+          refY="5"
+          markerWidth="7"
+          markerHeight="7"
+          orient="auto-start-reverse"
+        >
+          <path d="M 0 1 L 10 5 L 0 9 z" fill="#C7FF4A" />
+        </marker>
+
+        <marker
+          id="arrow-active"
+          viewBox="0 0 10 10"
+          refX="8"
+          refY="5"
+          markerWidth="8"
+          markerHeight="8"
+          orient="auto-start-reverse"
+        >
+          <path d="M 0 1 L 10 5 L 0 9 z" fill="#C7FF4A" />
+        </marker>
+
+        <marker
+          id="arrow-neutral"
+          viewBox="0 0 10 10"
+          refX="8"
+          refY="5"
+          markerWidth="6"
+          markerHeight="6"
+          orient="auto-start-reverse"
+        >
+          <path d="M 0 1 L 10 5 L 0 9 z" fill="#8B5CF6" />
+        </marker>
+
+        {/* Glow Filters */}
+        <filter id="glow-lime" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="6" result="blur" />
+          <feComposite in="SourceGraphic" in2="blur" operator="over" />
+        </filter>
+      </defs>
+
+      {/* Grid Pattern Background */}
+      <pattern id="grid-pattern" width="40" height="40" patternUnits="userSpaceOnUse">
+        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+      </pattern>
+      <rect width="1200" height="700" fill="url(#grid-pattern)" rx="12" />
+
+      {/* RENDER CONNECTIONS */}
+      {connections.map((conn, idx) => {
+        const fromElem = elementsMap[conn.from];
+        const toElem = elementsMap[conn.to];
+
+        // Ignore invalid connection referencing missing elements safely without crashing
+        if (!fromElem || !toElem) return null;
+
+        const x1 = Math.max(60, Math.min(1140, fromElem.position?.x ?? 200));
+        const y1 = Math.max(50, Math.min(650, fromElem.position?.y ?? 200));
+        const x2 = Math.max(60, Math.min(1140, toElem.position?.x ?? 600));
+        const y2 = Math.max(50, Math.min(650, toElem.position?.y ?? 200));
+
+        const isConnActive = activeElementIds.has(fromElem.id) || activeElementIds.has(toElem.id);
+        const midX = (x1 + x2) / 2;
+        const midY = (y1 + y2) / 2;
+
+        const isDashed = conn.type === 'dashed';
+        const markerId = isConnActive ? 'url(#arrow-active)' : 'url(#arrow-neutral)';
+        const strokeColor = isConnActive ? '#C7FF4A' : conn.color || '#8B5CF6';
+
         return (
-          <div
-            key={elem.id || idx}
-            className={`p-4 rounded-xl border transition-all duration-300 ${
-              isActive
-                ? 'bg-[#181620] border-[#C7FF4A] shadow-[0_0_16px_rgba(199,255,74,0.3)] scale-102'
-                : 'bg-[#121118] border-white/10 text-[#A6A1B2]'
-            }`}
-          >
-            <span className="text-[10px] font-bold text-[#8B5CF6] uppercase block mb-1">
-              {elem.type || `Node ${idx + 1}`}
-            </span>
-            <h5 className={`text-xs font-bold ${isActive ? 'text-[#C7FF4A]' : 'text-[#F7F5FA]'}`}>
-              {elem.label}
-            </h5>
-            {elem.value && (
-              <span className="text-xs font-mono bg-black/40 px-2 py-0.5 rounded text-[#C7FF4A] mt-2 inline-block">
-                {elem.value}
-              </span>
+          <g key={`conn_${idx}_${conn.from}_${conn.to}`}>
+            {/* SVG Connector Line */}
+            <line
+              x1={x1}
+              y1={y1}
+              x2={x2}
+              y2={y2}
+              stroke={strokeColor}
+              strokeWidth={isConnActive ? 3.5 : 2}
+              strokeDasharray={isDashed ? '6 6' : undefined}
+              markerEnd={conn.direction !== 'none' ? markerId : undefined}
+              opacity={isConnActive ? 1 : 0.65}
+              className="transition-all duration-300"
+            />
+
+            {/* Connection Label Badge */}
+            {conn.label && (
+              <g transform={`translate(${midX}, ${midY})`}>
+                <rect
+                  x={-(conn.label.length * 4.5 + 8)}
+                  y="-11"
+                  width={conn.label.length * 9 + 16}
+                  height="22"
+                  rx="6"
+                  fill="#121118"
+                  stroke={strokeColor}
+                  strokeWidth="1"
+                />
+                <text
+                  x="0"
+                  y="4"
+                  fill="#F7F5FA"
+                  fontSize="11"
+                  fontWeight="600"
+                  textAnchor="middle"
+                >
+                  {conn.label}
+                </text>
+              </g>
             )}
-          </div>
+          </g>
         );
       })}
-    </div>
+
+      {/* RENDER ELEMENTS */}
+      {elements.map((elem) => {
+        const x = Math.max(80, Math.min(1120, elem.position?.x ?? 300));
+        const y = Math.max(60, Math.min(640, elem.position?.y ?? 300));
+        const isActive = activeElementIds.has(elem.id);
+        const isSelected = selectedElementId === elem.id;
+
+        const elemType = (elem.type || 'box').toLowerCase();
+
+        return (
+          <g
+            key={elem.id}
+            transform={`translate(${x}, ${y})`}
+            onClick={() => onSelectElement(elem.id)}
+            className="cursor-pointer group transition-all duration-300"
+          >
+            {/* Active Glow Ring */}
+            {(isActive || isSelected) && (
+              <circle
+                r="70"
+                fill="none"
+                stroke={isSelected ? '#8B5CF6' : '#C7FF4A'}
+                strokeWidth="2"
+                strokeDasharray="4 4"
+                className="animate-spin-slow opacity-60"
+              />
+            )}
+
+            {/* TYPE 1: CIRCLE */}
+            {elemType === 'circle' && (
+              <g>
+                <circle
+                  r="45"
+                  fill={isActive ? 'rgba(199, 255, 74, 0.2)' : 'rgba(24, 22, 32, 0.9)'}
+                  stroke={isActive ? '#C7FF4A' : elem.color || 'rgba(255,255,255,0.25)'}
+                  strokeWidth={isActive ? 3.5 : 2}
+                  filter={isActive ? 'url(#glow-lime)' : undefined}
+                />
+                <text
+                  y={elem.value ? '-6' : '4'}
+                  fill="#F7F5FA"
+                  fontSize="14"
+                  fontWeight="bold"
+                  textAnchor="middle"
+                >
+                  {truncateText(elem.label, 12)}
+                </text>
+                {elem.value && (
+                  <text y="14" fill="#C7FF4A" fontSize="11" fontWeight="600" textAnchor="middle" fontFamily="monospace">
+                    {elem.value}
+                  </text>
+                )}
+              </g>
+            )}
+
+            {/* TYPE 2: FORMULA / MATH */}
+            {elemType === 'formula' && (
+              <g>
+                <rect
+                  x="-85"
+                  y="-35"
+                  width="170"
+                  height="70"
+                  rx="10"
+                  fill={isActive ? 'rgba(139, 92, 246, 0.25)' : 'rgba(18, 17, 24, 0.95)'}
+                  stroke={isActive ? '#C7FF4A' : '#8B5CF6'}
+                  strokeWidth={isActive ? 3 : 2}
+                />
+                <text y="-8" fill="#C7FF4A" fontSize="11" fontWeight="bold" textAnchor="middle">
+                  {truncateText(elem.label, 18)}
+                </text>
+                <text y="14" fill="#F7F5FA" fontSize="15" fontWeight="bold" textAnchor="middle" fontFamily="serif" fontStyle="italic">
+                  {elem.value || elem.label}
+                </text>
+              </g>
+            )}
+
+            {/* TYPE 3: TEXT */}
+            {elemType === 'text' && (
+              <g>
+                <rect
+                  x="-75"
+                  y="-22"
+                  width="150"
+                  height="44"
+                  rx="22"
+                  fill={isActive ? '#C7FF4A' : 'rgba(24, 22, 32, 0.9)'}
+                  stroke={isActive ? '#FFFFFF' : 'rgba(255,255,255,0.2)'}
+                  strokeWidth="2"
+                />
+                <text
+                  y="5"
+                  fill={isActive ? '#0B0A0F' : '#F7F5FA'}
+                  fontSize="13"
+                  fontWeight="bold"
+                  textAnchor="middle"
+                >
+                  {truncateText(elem.label, 16)}
+                </text>
+              </g>
+            )}
+
+            {/* TYPE 4: IMAGE PLACEHOLDER */}
+            {elemType === 'image_placeholder' && (
+              <g>
+                <rect
+                  x="-75"
+                  y="-45"
+                  width="150"
+                  height="90"
+                  rx="10"
+                  fill="rgba(18, 17, 24, 0.9)"
+                  stroke={isActive ? '#C7FF4A' : '#A6A1B2'}
+                  strokeWidth="2"
+                  strokeDasharray="4 4"
+                />
+                <text y="-10" fill="#A6A1B2" fontSize="18" textAnchor="middle">🖼️</text>
+                <text y="16" fill="#F7F5FA" fontSize="11" fontWeight="bold" textAnchor="middle">
+                  {truncateText(elem.label, 16)}
+                </text>
+              </g>
+            )}
+
+            {/* TYPE 5: BOX / NODE / DEFAULT */}
+            {(elemType === 'box' || elemType === 'node' || elemType === 'arrow') && (
+              <g>
+                <rect
+                  x="-75"
+                  y="-35"
+                  width="150"
+                  height="70"
+                  rx="12"
+                  fill={isActive ? 'rgba(199, 255, 74, 0.18)' : 'rgba(24, 22, 32, 0.92)'}
+                  stroke={isActive ? '#C7FF4A' : elem.color || 'rgba(255,255,255,0.25)'}
+                  strokeWidth={isActive ? 3 : 2}
+                  filter={isActive ? 'url(#glow-lime)' : undefined}
+                />
+                <text
+                  y={elem.value ? '-8' : '4'}
+                  fill={isActive ? '#C7FF4A' : '#F7F5FA'}
+                  fontSize="13"
+                  fontWeight="bold"
+                  textAnchor="middle"
+                >
+                  {truncateText(elem.label, 16)}
+                </text>
+                {elem.value && (
+                  <text y="14" fill="#F7F5FA" fontSize="12" fontWeight="500" textAnchor="middle" fontFamily="monospace">
+                    {elem.value}
+                  </text>
+                )}
+              </g>
+            )}
+          </g>
+        );
+      })}
+    </svg>
   );
 };
 
-function buildDefaultSteps(data: MagicViewData): MagicViewStep[] {
-  if (data.elements && data.elements.length > 0) {
-    return data.elements.map((elem, idx) => ({
-      step_number: idx + 1,
-      title: elem.label || `Step ${idx + 1}`,
-      description: elem.details || data.summary || `Step ${idx + 1} of concept visualization.`,
-      active_elements: [elem.id],
-      highlight_color: '#C7FF4A',
-    }));
-  }
-
-  return [
-    {
-      step_number: 1,
-      title: data.title || 'Concept Overview',
-      description: data.summary || 'Interactive visual explanation generated for concept.',
-      active_elements: [],
-      highlight_color: '#C7FF4A',
-    },
-  ];
+function truncateText(str: string, maxLen: number): string {
+  if (!str) return '';
+  return str.length > maxLen ? str.slice(0, maxLen - 1) + '…' : str;
 }

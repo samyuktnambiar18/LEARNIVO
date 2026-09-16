@@ -132,17 +132,35 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
 
     try {
       if (activeMode === 'magic_view') {
+        // Handle case where text is a retry request
+        let cleanQuery = userText;
+        if (cleanQuery.startsWith('Retry Magic View for "') && cleanQuery.endsWith('"')) {
+          cleanQuery = cleanQuery.slice('Retry Magic View for "'.length, -1);
+        }
+
         // MAGIC VIEW MODE: Call Master Webhook via learnivoBackend
         const magicResult = await learnivoBackend.generateMagicView(
-          userText,
+          cleanQuery,
           user?.id || 'guest',
           sessionId
         );
 
+        if (!magicResult.success || !magicResult.data) {
+          const errorMessage: ChatMessage = {
+            id: 'msg_err_' + Date.now(),
+            sender: 'ai',
+            text: magicResult.errorMessage || "Magic View couldn't generate the visualization right now. Please try again.",
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            suggestedFollowups: [`Retry Magic View for "${cleanQuery}"`]
+          };
+          setMessages([...updated, errorMessage]);
+          return;
+        }
+
         const aiMessage: ChatMessage = {
           id: 'msg_magic_' + Date.now(),
           sender: 'ai',
-          text: magicResult.data.summary || `✨ Magic View visual explanation for: ${userText}`,
+          text: magicResult.data.summary || `✨ Magic View visual explanation for: ${cleanQuery}`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           magicViewData: magicResult.data
         };
@@ -196,14 +214,16 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
         const errorMessage: ChatMessage = {
           id: 'msg_err_' + Date.now(),
           sender: 'ai',
-          text: "Magic View couldn't create a visual explanation. Please try again.",
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          text: "Magic View couldn't generate the visualization right now. Please try again.",
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          suggestedFollowups: [`Retry Magic View for "${userText}"`]
         };
         setMessages([...updated, errorMessage]);
       }
     } finally {
       setIsThinking(false);
     }
+
   };
 
   const handleNewChat = () => {

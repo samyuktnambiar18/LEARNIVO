@@ -136,12 +136,14 @@ export interface MagicViewStep {
 export interface MagicViewElement {
   id: string;
   label: string;
-  type?: 'node' | 'box' | 'circle' | 'text' | 'bar' | 'array_item' | 'step_card' | 'shape' | string;
-  position?: { x?: number; y?: number };
+  type?: 'box' | 'circle' | 'text' | 'arrow' | 'image_placeholder' | 'formula' | 'node' | string;
+  position?: { x: number; y: number };
   value?: string | number;
   color?: string;
   state?: 'active' | 'highlighted' | 'dimmed' | 'normal' | string;
   details?: string;
+  width?: number;
+  height?: number;
 }
 
 export interface MagicViewConnection {
@@ -149,19 +151,20 @@ export interface MagicViewConnection {
   to: string;
   label?: string;
   type?: 'arrow' | 'line' | 'dashed' | string;
+  direction?: 'forward' | 'backward' | 'both' | string;
   color?: string;
 }
 
 export interface MagicViewAnimation {
   step?: number;
-  action?: 'appear' | 'highlight' | 'move' | 'connect' | 'compare' | string;
+  action?: 'appear' | 'highlight' | 'move' | 'pulse' | 'draw' | string;
   target_ids?: string[];
   description?: string;
 }
 
 export interface MagicViewInteraction {
   id?: string;
-  type?: string;
+  type?: 'click' | 'hover' | 'next' | 'previous' | 'play' | 'pause' | 'reset' | string;
   target?: string;
   action_description?: string;
 }
@@ -182,6 +185,8 @@ export interface MagicViewData {
 export interface MagicViewResult {
   success: boolean;
   action: string;
-  data: MagicViewData;
+  data?: MagicViewData;
+  errorMessage?: string;
 }
+
 
