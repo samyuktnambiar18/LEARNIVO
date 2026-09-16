@@ -38,6 +38,7 @@ export interface LearningMaterial {
   title?: string;
   topics: Topic[];
   chapters?: Chapter[];
+  videos?: VideoRecommendation[];
   status: 'processing' | 'ready' | 'error';
   errorMessage?: string;
 }

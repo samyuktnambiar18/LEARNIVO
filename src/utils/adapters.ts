@@ -65,6 +65,9 @@ export function parsePdfResponse(
     topics: Array.isArray(c.topics) ? c.topics : []
   }));
 
+  const rawVideos = raw.videos || raw.youtube_videos || raw.recommendations || raw.youtubeVideos;
+  const videos = rawVideos ? parseYoutubeResponse(rawVideos, title) : [];
+
   return {
     id,
     fileName,
@@ -74,6 +77,7 @@ export function parsePdfResponse(
     rawText: extractedText,
     topics,
     chapters,
+    videos,
     status: 'ready'
   };
 }

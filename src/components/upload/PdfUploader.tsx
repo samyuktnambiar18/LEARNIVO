@@ -1,9 +1,11 @@
 import React, { useState, useRef } from 'react';
-import { Upload, FileText, CheckCircle2, AlertCircle, X, RefreshCw, Loader2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Upload, FileText, CheckCircle2, AlertCircle, X, RefreshCw, Loader2, MessageSquareCode, BrainCircuit } from 'lucide-react';
 import { pdfService } from '../../services/api/pdfService';
 import { storageService } from '../../services/storage/storageService';
 import { LearningMaterial } from '../../types';
 import { Button } from '../ui/Button';
+import { VideoRecommendations } from '../learning/VideoRecommendations';
 
 interface PdfUploaderProps {
   onSuccess?: (material: LearningMaterial) => void;
@@ -78,8 +80,10 @@ export const PdfUploader: React.FC<PdfUploaderProps> = ({ onSuccess }) => {
     }
   };
 
+  const mainTopic = processedMaterial?.topics[0]?.name || processedMaterial?.title || '';
+
   return (
-    <div className="surface-card p-8 max-w-2xl mx-auto border border-white/10 rounded-xl">
+    <div className="surface-card p-8 max-w-3xl mx-auto border border-white/10 rounded-xl">
       <input
         ref={fileInputRef}
         type="file"
@@ -93,18 +97,20 @@ export const PdfUploader: React.FC<PdfUploaderProps> = ({ onSuccess }) => {
       />
 
       {status === 'ready' && processedMaterial ? (
-        <div className="text-center py-6">
-          <div className="w-16 h-16 rounded-full bg-[#C7FF4A]/10 border border-[#C7FF4A]/30 flex items-center justify-center mx-auto mb-4 text-[#C7FF4A]">
-            <CheckCircle2 className="w-8 h-8" />
+        <div className="space-y-6">
+          <div className="text-center py-4">
+            <div className="w-14 h-14 rounded-full bg-[#C7FF4A]/10 border border-[#C7FF4A]/30 flex items-center justify-center mx-auto mb-3 text-[#C7FF4A]">
+              <CheckCircle2 className="w-7 h-7" />
+            </div>
+            <h3 className="text-xl font-bold text-[#F7F5FA] mb-1">Document Processed & Concepts Extracted</h3>
+            <p className="text-xs text-[#A6A1B2]">
+              "{processedMaterial.title}" is ready. Topics identified and YouTube learning resources matched.
+            </p>
           </div>
-          <h3 className="text-xl font-bold text-[#F7F5FA] mb-1">Processing Complete</h3>
-          <p className="text-sm text-[#A6A1B2] mb-6">
-            Document "{processedMaterial.title}" is ready for learning.
-          </p>
 
-          <div className="bg-[#181620] p-4 rounded-lg text-left border border-white/10 mb-6 max-h-48 overflow-y-auto">
+          <div className="bg-[#181620] p-4 rounded-lg text-left border border-white/10">
             <h4 className="text-xs font-semibold text-[#C7FF4A] uppercase tracking-wider mb-2">
-              Detected Topics ({processedMaterial.topics.length})
+              Extracted Topics ({processedMaterial.topics.length})
             </h4>
             <div className="flex flex-wrap gap-2">
               {processedMaterial.topics.map(t => (
@@ -115,19 +121,33 @@ export const PdfUploader: React.FC<PdfUploaderProps> = ({ onSuccess }) => {
             </div>
           </div>
 
-          <div className="flex items-center justify-center gap-3">
-            <Button variant="outline" onClick={handleReset}>
+          {/* Related YouTube Videos Component */}
+          {mainTopic && (
+            <div className="mt-4">
+              <VideoRecommendations topic={mainTopic} />
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            <Link to="/pages/chat.html">
+              <Button variant="primary" size="sm">
+                <MessageSquareCode className="w-4 h-4 mr-1.5" />
+                Ask AI Tutor
+              </Button>
+            </Link>
+            <Link to="/pages/practice.html">
+              <Button variant="secondary" size="sm">
+                <BrainCircuit className="w-4 h-4 mr-1.5" />
+                Practice Questions
+              </Button>
+            </Link>
+            <Button variant="outline" size="sm" onClick={handleReset}>
               Upload Another PDF
-            </Button>
-            <Button
-              variant="primary"
-              onClick={() => window.location.href = '/pages/student-dashboard.html'}
-            >
-              Go to Workspace
             </Button>
           </div>
         </div>
       ) : (
+
         <div>
           {/* Dropzone */}
           {!file && (
