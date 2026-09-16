@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { MainLayout } from '../../components/layout/MainLayout';
 import { storageService } from '../../services/storage/storageService';
+import { adaptiveLearningService } from '../../services/api/adaptiveLearningService';
 import { Question, LearningMaterial } from '../../types';
 import { QuestionCard } from '../../components/practice/QuestionCard';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { BrainCircuit } from 'lucide-react';
+
 
 export const PracticePage: React.FC = () => {
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -70,7 +72,7 @@ export const PracticePage: React.FC = () => {
     const currentQ = questions[currentIndex];
     if (!currentQ) return;
 
-    storageService.savePracticeAttempt({
+    const newAttempt = {
       id: 'att_' + Date.now(),
       questionId: currentQ.id,
       topic: currentQ.topic,
@@ -79,8 +81,16 @@ export const PracticePage: React.FC = () => {
       isCorrect,
       timestamp: new Date().toISOString(),
       timeSpentSeconds
+    };
+
+    storageService.savePracticeAttempt(newAttempt);
+    const allAttempts = storageService.getPracticeAttempts();
+    adaptiveLearningService.evaluateActivity(allAttempts).catch((err: any) => {
+      console.warn('Adaptive learning evaluation warning:', err);
     });
+
   };
+
 
   return (
     <MainLayout>

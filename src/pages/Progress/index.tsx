@@ -1,22 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart3, TrendingUp, CheckCircle, Target, Award } from 'lucide-react';
+import { BarChart3, TrendingUp, CheckCircle, Target, Award, BrainCircuit, Sparkles } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import { MainLayout } from '../../components/layout/MainLayout';
 import { storageService } from '../../services/storage/storageService';
-import { LearningProgress, PracticeAttempt } from '../../types';
+import { adaptiveLearningService } from '../../services/api/adaptiveLearningService';
+import { LearningProgress, PracticeAttempt, AdaptiveLearningResult } from '../../types';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Card } from '../../components/ui/Card';
+import { Badge } from '../../components/ui/Badge';
 
 export const ProgressPage: React.FC = () => {
   const [progress, setProgress] = useState<LearningProgress | null>(null);
   const [attempts, setAttempts] = useState<PracticeAttempt[]>([]);
+  const [evaluation, setEvaluation] = useState<AdaptiveLearningResult | null>(null);
 
   useEffect(() => {
     const loadedProgress = storageService.getProgress();
     const loadedAttempts = storageService.getPracticeAttempts();
     setProgress(loadedProgress);
     setAttempts(loadedAttempts);
+
+    if (loadedAttempts.length > 0) {
+      adaptiveLearningService.evaluateActivity(loadedAttempts)
+        .then(res => setEvaluation(res))
+        .catch(err => console.warn('Adaptive evaluation error:', err));
+    }
   }, []);
+
 
   return (
     <MainLayout>
