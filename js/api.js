@@ -5,10 +5,18 @@
    ========================================================================== */
 
 const LEARNIVO_API_CONFIG = {
-  chatWebhook: 'https://api.agents.snsihub.ai/webhook/4a662d25-cbee-4e03-8afb-ecb929b27719',
-  chatTestWebhook: 'https://api.agents.snsihub.ai/webhook-test/4a662d25-cbee-4e03-8afb-ecb929b27719',
+  // Primary Production Endpoints (SNS Workbench Adaptive Learning)
+  chatWebhook: 'https://api.agents.snsihub.ai/webhook/adaptive-learning',
+  chatTestWebhook: 'https://api.agents.snsihub.ai/webhook-test/adaptive-learning',
+  
+  // Legacy Endpoints (Fallback)
+  legacyChatWebhook: 'https://api.agents.snsihub.ai/webhook/4a662d25-cbee-4e03-8afb-ecb929b27719',
+  legacyChatTestWebhook: 'https://api.agents.snsihub.ai/webhook-test/4a662d25-cbee-4e03-8afb-ecb929b27719',
+  
+  // Adaptive Learning Endpoints
   prodWebhook: 'https://api.agents.snsihub.ai/webhook/adaptive-learning',
   testWebhook: 'https://api.agents.snsihub.ai/webhook-test/adaptive-learning',
+  
   timeoutMs: 12000
 };
 
@@ -20,57 +28,57 @@ class SNSAdaptiveLearningService {
 
   /**
    * Health Check & Endpoint Resolution
+   * Priority: Production Adaptive Learning → Legacy Endpoints → Offline
    */
   async checkStatus() {
-    try {
-      // Test Prod Webhook
-      const prodRes = await fetch(LEARNIVO_API_CONFIG.chatWebhook, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'ping', timestamp: new Date().toISOString() })
-      });
+    const endpointsToTest = [
+      { url: LEARNIVO_API_CONFIG.chatWebhook, mode: 'production', type: 'production' },
+      { url: LEARNIVO_API_CONFIG.chatTestWebhook, mode: 'test-mode', type: 'test' },
+      { url: LEARNIVO_API_CONFIG.legacyChatWebhook, mode: 'legacy-production', type: 'legacy' },
+      { url: LEARNIVO_API_CONFIG.legacyChatTestWebhook, mode: 'legacy-test', type: 'legacy' }
+    ];
 
-      const prodData = await prodRes.json();
-      if (prodRes.ok && !prodData.error) {
-        this.activeEndpoint = LEARNIVO_API_CONFIG.chatWebhook;
-        this.connectionStatus = 'connected';
-        return { status: 'connected', endpoint: this.activeEndpoint, mode: 'production' };
+    for (const endpoint of endpointsToTest) {
+      try {
+        const res = await fetch(endpoint.url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'ping', timestamp: new Date().toISOString() })
+        });
+
+        const data = await res.json();
+        if (res.ok || data.status === 'completed' || data.success || !data.error) {
+          this.activeEndpoint = endpoint.url;
+          this.connectionStatus = 'connected';
+          console.log(`✅ Connected to ${endpoint.type} endpoint: ${endpoint.mode}`);
+          return { 
+            status: 'connected', 
+            endpoint: this.activeEndpoint, 
+            mode: endpoint.mode,
+            endpointType: endpoint.type
+          };
+        }
+      } catch (e) {
+        console.warn(`Endpoint check failed (${endpoint.type}):`, endpoint.url, e.message);
       }
-    } catch (e) {
-      console.warn('Prod chat webhook unreachable, checking test fallback...', e);
-    }
-
-    try {
-      // Test Webhook Fallback
-      const testRes = await fetch(LEARNIVO_API_CONFIG.chatTestWebhook, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'ping', timestamp: new Date().toISOString() })
-      });
-
-      const testData = await testRes.json();
-      if (testRes.ok || testData.status === 'completed' || testData.success) {
-        this.activeEndpoint = LEARNIVO_API_CONFIG.chatTestWebhook;
-        this.connectionStatus = 'test-mode';
-        return { status: 'connected', endpoint: this.activeEndpoint, mode: 'test-mode' };
-      }
-    } catch (e) {
-      console.warn('Test webhook check error:', e);
     }
 
     this.connectionStatus = 'offline';
-    return { status: 'offline', endpoint: null, mode: 'offline' };
+    return { status: 'offline', endpoint: null, mode: 'offline', endpointType: 'none' };
   }
 
   /**
    * Send Question to SNS Agent Workbench POST Webhook
-   * Endpoint: https://api.agents.snsihub.ai/webhook/4a662d25-cbee-4e03-8afb-ecb929b27719
+   * Primary Endpoint: https://api.agents.snsihub.ai/webhook/adaptive-learning
+   * Fallback: Legacy endpoint + test modes
    * @param {Object} payload - { question, subject, topic, studentId, studentName }
    */
   async sendSubjectChatQuestion(payload) {
     const endpointsToTry = [
-      LEARNIVO_API_CONFIG.chatWebhook,
-      LEARNIVO_API_CONFIG.chatTestWebhook
+      LEARNIVO_API_CONFIG.chatWebhook,           // Production Adaptive Learning
+      LEARNIVO_API_CONFIG.chatTestWebhook,       // Test Adaptive Learning
+      LEARNIVO_API_CONFIG.legacyChatWebhook,     // Legacy Production
+      LEARNIVO_API_CONFIG.legacyChatTestWebhook  // Legacy Test
     ];
 
     const postBody = {
@@ -95,6 +103,8 @@ class SNSAdaptiveLearningService {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), LEARNIVO_API_CONFIG.timeoutMs);
 
+        console.log(`📤 Sending question to endpoint: ${endpoint}`);
+
         const response = await fetch(endpoint, {
           method: 'POST',
           headers: {
@@ -108,8 +118,11 @@ class SNSAdaptiveLearningService {
         clearTimeout(timeoutId);
         const data = await response.json();
 
-        // If webhook error contains 'inactive' or 404, fallback to test endpoint
+        console.log(`✅ Response received from: ${endpoint}`, data);
+
+        // If webhook error contains 'inactive' or 404, try next endpoint
         if (data.error && (data.error.includes('inactive') || data.error.includes('not found'))) {
+          console.warn(`Endpoint inactive, trying next fallback...`);
           continue;
         }
 
@@ -129,7 +142,7 @@ class SNSAdaptiveLearningService {
 
       } catch (err) {
         lastError = err;
-        console.warn(`Failed to connect to chat endpoint ${endpoint}:`, err);
+        console.warn(`❌ Failed to connect to endpoint ${endpoint}:`, err.message);
       }
     }
 
