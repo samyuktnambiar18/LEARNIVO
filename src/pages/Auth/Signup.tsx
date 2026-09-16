@@ -4,6 +4,8 @@ import { Mail, Lock, User as UserIcon, Eye, EyeOff, AlertCircle } from 'lucide-r
 import { authService } from '../../services/auth/authService';
 import { Button } from '../../components/ui/Button';
 import { LearnivoLogo } from '../../components/ui/LearnivoLogo';
+import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton';
+import { User } from '../../types';
 
 export const Signup: React.FC = () => {
   const navigate = useNavigate();
@@ -37,6 +39,10 @@ export const Signup: React.FC = () => {
       setError(err?.message || 'Failed to create account.');
       setIsLoading(false);
     }
+  };
+
+  const handleGoogleSuccess = (_user: User) => {
+    navigate('/onboarding');
   };
 
   return (
@@ -128,6 +134,17 @@ export const Signup: React.FC = () => {
             Create Account
           </Button>
         </form>
+
+        <div className="relative flex items-center justify-center my-4">
+          <div className="border-t border-white/10 w-full" />
+          <span className="bg-[#121118] px-3 text-[11px] text-[#A6A1B2] absolute">OR</span>
+        </div>
+
+        <GoogleSignInButton
+          mode="signup"
+          onSuccess={handleGoogleSuccess}
+          onError={(msg) => setError(msg)}
+        />
 
         <p className="text-center text-xs text-[#A6A1B2]">
           Already have an account?{' '}

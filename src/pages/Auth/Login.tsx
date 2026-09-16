@@ -4,6 +4,8 @@ import { Mail, Lock, AlertCircle } from 'lucide-react';
 import { authService } from '../../services/auth/authService';
 import { Button } from '../../components/ui/Button';
 import { LearnivoLogo } from '../../components/ui/LearnivoLogo';
+import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton';
+import { User } from '../../types';
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -31,14 +33,12 @@ export const Login: React.FC = () => {
     }
   };
 
-  const handleGoogle = async () => {
-    setIsLoading(true);
-    try {
-      await authService.googleLogin();
+  const handleGoogleSuccess = (_user: User) => {
+    const profile = authService.getCurrentProfile();
+    if (!profile || !profile.completedOnboarding) {
+      navigate('/onboarding');
+    } else {
       navigate('/pages/student-dashboard.html');
-    } catch (err: any) {
-      setError('Google sign in failed.');
-      setIsLoading(false);
     }
   };
 
@@ -105,9 +105,11 @@ export const Login: React.FC = () => {
           <span className="bg-[#121118] px-3 text-[11px] text-[#A6A1B2] absolute">OR</span>
         </div>
 
-        <Button variant="outline" className="w-full" onClick={handleGoogle}>
-          Continue with Google
-        </Button>
+        <GoogleSignInButton
+          mode="continue"
+          onSuccess={handleGoogleSuccess}
+          onError={(msg) => setError(msg)}
+        />
 
         <p className="text-center text-xs text-[#A6A1B2]">
           Don't have an account?{' '}

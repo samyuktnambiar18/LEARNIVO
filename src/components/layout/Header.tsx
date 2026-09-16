@@ -58,8 +58,14 @@ export const Header: React.FC<HeaderProps> = ({ onMobileMenuToggle, isMobileMenu
 
         {/* User Pill */}
         <div className="flex items-center gap-2.5 pl-3 border-l border-white/10">
-          <div className="w-8 h-8 rounded-full bg-[#181620] border border-white/15 flex items-center justify-center text-[#C7FF4A] text-xs font-semibold">
-            {user?.name ? user.name.charAt(0).toUpperCase() : <UserIcon className="w-4 h-4 text-[#A6A1B2]" />}
+          <div className="w-8 h-8 rounded-full bg-[#181620] border border-white/15 flex items-center justify-center text-[#C7FF4A] text-xs font-semibold overflow-hidden">
+            {user?.avatar ? (
+              <img src={user.avatar} alt={user.name || 'User'} className="w-full h-full object-cover" />
+            ) : user?.name ? (
+              user.name.charAt(0).toUpperCase()
+            ) : (
+              <UserIcon className="w-4 h-4 text-[#A6A1B2]" />
+            )}
           </div>
           <span className="hidden lg:inline text-xs font-medium text-[#F7F5FA]">
             {user?.name || 'Learner'}

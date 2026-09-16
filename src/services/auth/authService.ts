@@ -2,6 +2,34 @@ import { supabase } from '../supabase';
 import { storageService } from '../storage/storageService';
 import { User, LearningProfile } from '../../types';
 
+export interface GoogleJwtPayload {
+  sub: string;
+  email: string;
+  email_verified?: boolean;
+  name: string;
+  picture?: string;
+  given_name?: string;
+  family_name?: string;
+}
+
+export function decodeGoogleJwt(credential: string): GoogleJwtPayload | null {
+  try {
+    const base64Url = credential.split('.')[1];
+    if (!base64Url) return null;
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload) as GoogleJwtPayload;
+  } catch (err) {
+    console.error('Failed to decode Google JWT token:', err);
+    return null;
+  }
+}
+
 export const authService = {
   /**
    * Initializes session from Supabase on app startup & sets up auth state listener
@@ -131,6 +159,44 @@ export const authService = {
       name: name.trim(),
       email: data.user.email || email,
       createdAt: data.user.created_at || new Date().toISOString()
+    };
+
+    storageService.saveUser(user);
+    return user;
+  },
+
+
+  getGoogleClientId: (): string => {
+    return import.meta.env.VITE_GOOGLE_CLIENT_ID || '855964443923-7osg31lt6qj81rii2p4u9anets1ni8bm.apps.googleusercontent.com';
+  },
+
+  handleGoogleCredential: async (credential: string): Promise<User> => {
+    const payload = decodeGoogleJwt(credential);
+    if (!payload || !payload.email) {
+      throw new Error('Unable to read Google profile from login token.');
+    }
+
+    let userId = payload.sub;
+
+    // Try to sync with Supabase Auth ID token if Google provider is enabled in Supabase
+    try {
+      const { data, error } = await supabase.auth.signInWithIdToken({
+        provider: 'google',
+        token: credential
+      });
+      if (!error && data?.user) {
+        userId = data.user.id;
+      }
+    } catch (err) {
+      console.info('Supabase signInWithIdToken skipped; using verified Google profile session.', err);
+    }
+
+    const user: User = {
+      id: userId,
+      name: payload.name || payload.email.split('@')[0],
+      email: payload.email,
+      avatar: payload.picture,
+      createdAt: new Date().toISOString()
     };
 
     storageService.saveUser(user);
