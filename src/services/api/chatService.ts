@@ -17,7 +17,8 @@ export const chatService = {
   sendMessage: async (
     messageText: string,
     materialTitle?: string,
-    materialText?: string
+    materialText?: string,
+    imageUrl?: string
   ): Promise<ChatServiceResponse> => {
     try {
       const response = await fetch(CHAT_WEBHOOK_URL, {
@@ -26,11 +27,14 @@ export const chatService = {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          message: messageText,
-          query: messageText,
-          text: messageText,
+          message: messageText || 'Explain this image',
+          query: messageText || 'Explain this image',
+          text: messageText || 'Explain this image',
           materialTitle: materialTitle || '',
           context: materialText ? materialText.slice(0, 2000) : '',
+          imageUrl: imageUrl || '',
+          image: imageUrl || '',
+          imageBase64: imageUrl || '',
         })
       });
 

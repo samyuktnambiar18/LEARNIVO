@@ -25,6 +25,9 @@ export interface AssessmentHistoryRecord {
   percentage: number;
   completed_at: string;
   details?: QuestionReviewDetail[];
+  status?: 'completed' | 'cancelled' | 'terminated';
+  warning_count?: number;
+  violations?: { type: string; timestamp: string; question_number: number }[];
 }
 
 const LOCAL_STORAGE_KEY = 'learnivo_assessment_history';

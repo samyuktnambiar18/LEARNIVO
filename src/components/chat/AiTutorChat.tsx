@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Bot, User, PlusCircle, Sparkles, Loader2, BookOpen, Play, Video, ExternalLink, AlertCircle, Eye } from 'lucide-react';
+import { Send, Bot, User, PlusCircle, Sparkles, Loader2, BookOpen, Play, Video, ExternalLink, AlertCircle, Eye, Plus, X, Image as ImageIcon } from 'lucide-react';
 import { storageService } from '../../services/storage/storageService';
 import { chatService } from '../../services/api/chatService';
 import { learnivoBackend } from '../../services/api/learnivoBackend';
@@ -21,8 +21,16 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
   const [activeMode, setActiveMode] = useState<'explain' | 'magic_view'>('explain');
   const [sessionId, setSessionId] = useState<string>(() => crypto.randomUUID());
   const [dbError, setDbError] = useState<string | null>(null);
-  
+
+  // Image Upload State
+  const [selectedImage, setSelectedImage] = useState<{
+    file: File;
+    previewUrl: string;
+    base64: string;
+  } | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -91,12 +99,41 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isThinking]);
 
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!validTypes.includes(file.type.toLowerCase())) {
+      alert('Please select a valid image file (JPG, JPEG, PNG, or WEBP).');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result as string;
+      const previewUrl = URL.createObjectURL(file);
+      setSelectedImage({ file, previewUrl, base64 });
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleRemoveImage = () => {
+    if (selectedImage?.previewUrl) {
+      URL.revokeObjectURL(selectedImage.previewUrl);
+    }
+    setSelectedImage(null);
+  };
+
   const handleSendMessage = async (textToSend?: string) => {
     const text = textToSend || inputText;
-    if (!text.trim() || isThinking) return;
+    const currentImage = selectedImage;
+
+    if ((!text.trim() && !currentImage) || isThinking) return;
 
     setDbError(null);
-    const userText = text.trim();
+    const userText = text.trim() || (currentImage ? 'Please explain this image and solve the question inside it.' : '');
 
     // STEP 1: Get the currently authenticated Supabase user
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -110,6 +147,7 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
       id: 'msg_' + Date.now(),
       sender: 'user',
       text: userText,
+      imageUrl: currentImage?.previewUrl || currentImage?.base64,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       contextMaterialId: selectedMaterial?.id
     };
@@ -118,6 +156,7 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
     setMessages(updated);
     storageService.saveChatMessage(userMessage);
     setInputText('');
+    setSelectedImage(null);
     setIsThinking(true);
 
     // Save user message to Supabase
@@ -400,6 +439,11 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
                         : 'bg-[#181620] border border-white/10 text-[#F7F5FA]'
                     }`}
                   >
+                    {msg.imageUrl && (
+                      <div className="mb-3 rounded-lg overflow-hidden border border-white/20 max-w-xs bg-black/40">
+                        <img src={msg.imageUrl} alt="Uploaded problem/doubt" className="w-full h-auto max-h-56 object-contain rounded-lg" />
+                      </div>
+                    )}
                     <p className="whitespace-pre-line">{msg.text}</p>
 
                     {/* YouTube Embedded Player */}
@@ -514,14 +558,56 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
       </div>
 
       {/* Input Box */}
-      <div className="p-4 border-t border-white/10 bg-[#121118]">
+      <div className="p-4 border-t border-white/10 bg-[#121118] space-y-3">
+        {/* Selected Image Thumbnail Preview Bar */}
+        {selectedImage && (
+          <div className="flex items-center gap-2">
+            <div className="relative bg-[#181620] p-1.5 rounded-xl border border-white/10 flex items-center gap-2.5 pr-3 shadow-lg">
+              <img
+                src={selectedImage.previewUrl}
+                alt="Doubt image preview"
+                className="w-12 h-12 object-cover rounded-lg border border-white/10"
+              />
+              <div className="text-xs space-y-0.5 max-w-[150px] truncate">
+                <p className="font-semibold text-[#F7F5FA] text-[11px] truncate">{selectedImage.file.name}</p>
+                <p className="text-[10px] text-[#A6A1B2]">{(selectedImage.file.size / 1024).toFixed(1)} KB</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleRemoveImage}
+                className="w-5 h-5 rounded-full bg-red-500/80 hover:bg-red-600 text-white flex items-center justify-center text-xs ml-1 transition-all"
+                title="Remove image"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        )}
+
         <form
           onSubmit={(e) => {
             e.preventDefault();
             handleSendMessage();
           }}
-          className="flex items-center gap-3"
+          className="flex items-center gap-2.5"
         >
+          {/* '+' Image Attachment Button */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="p-3 rounded-lg bg-[#181620] border border-white/10 text-[#A6A1B2] hover:text-[#C7FF4A] hover:border-[#C7FF4A]/40 transition-all flex items-center justify-center flex-shrink-0"
+            title="Upload image"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept="image/jpeg,image/jpg,image/png,image/webp"
+            onChange={handleImageSelect}
+            className="hidden"
+          />
+
           <input
             type="text"
             value={inputText}
@@ -531,6 +617,8 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
                 ? 'Ask a concept for Magic View visual explanation...'
                 : selectedMaterial
                 ? `Ask about ${selectedMaterial.title}...`
+                : selectedImage
+                ? 'Ask a question about this image (optional)...'
                 : 'Ask a math, algorithm, or technical question...'
             }
             className="flex-1 bg-[#181620] border border-white/10 rounded-lg px-4 py-3 text-sm text-[#F7F5FA] placeholder-[#6E6A78] focus:outline-none focus:border-[#C7FF4A]/50 transition-all"
@@ -538,7 +626,7 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
           <Button
             type="submit"
             variant="primary"
-            disabled={!inputText.trim() || isThinking}
+            disabled={(!inputText.trim() && !selectedImage) || isThinking}
           >
             {activeMode === 'magic_view' ? (
               <Sparkles className="w-4 h-4" />

@@ -105,6 +105,7 @@ export interface ChatMessage {
   youtubeId?: string;
   videos?: VideoRecommendation[];
   magicViewData?: MagicViewData;
+  imageUrl?: string;
 }
 
 export interface VideoRecommendation {

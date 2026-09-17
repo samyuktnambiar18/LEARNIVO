@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Award,
   ArrowLeft,
@@ -12,7 +12,14 @@ import {
   RotateCcw,
   Loader2,
   Maximize2,
-  ShieldAlert
+  ShieldAlert,
+  Camera,
+  CameraOff,
+  AlertTriangle,
+  UserX,
+  Users,
+  EyeOff,
+  X
 } from 'lucide-react';
 import {
   AssessmentSuiteData,
@@ -34,12 +41,69 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [userAnswers, setUserAnswers] = useState<UserAssessmentAnswers>({});
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
-  const [isFullscreenExited, setIsFullscreenExited] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [completedRecord, setCompletedRecord] = useState<AssessmentHistoryRecord | null>(null);
 
-  // Fullscreen API protection
+  // Proctored Assessment State
+  const [assessmentStatus, setAssessmentStatus] = useState<'active' | 'submitted' | 'cancelled' | 'terminated'>('active');
+  const [cameraPermission, setCameraPermission] = useState<'prompt' | 'granted' | 'denied'>('prompt');
+  const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
+  const [warningCount, setWarningCount] = useState<number>(0);
+  const [fullscreenExitCount, setFullscreenExitCount] = useState<number>(0);
+  const [activeModal, setActiveModal] = useState<'none' | 'camera_permission' | 'warning' | 'terminated'>('none');
+  const [currentWarningDetails, setCurrentWarningDetails] = useState<{ title: string; message: string; violationType: string } | null>(null);
+  const [violationsLog, setViolationsLog] = useState<{ type: string; timestamp: string; question_number: number }[]>([]);
+
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  // 1. Request Webcam Permission & Start Camera Stream
   useEffect(() => {
+    let isMounted = true;
+    let stream: MediaStream | null = null;
+
+    async function requestCameraPermission() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 320 }, height: { ideal: 240 }, facingMode: 'user' }
+        });
+        if (isMounted) {
+          setMediaStream(stream);
+          setCameraPermission('granted');
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+          }
+        }
+      } catch (err) {
+        console.warn('Camera permission denied or camera unavailable:', err);
+        if (isMounted) {
+          setCameraPermission('denied');
+          setActiveModal('camera_permission');
+        }
+      }
+    }
+
+    requestCameraPermission();
+
+    return () => {
+      isMounted = false;
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
+
+  // Update video element srcObject when mediaStream is set
+  useEffect(() => {
+    if (videoRef.current && mediaStream) {
+      videoRef.current.srcObject = mediaStream;
+    }
+  }, [mediaStream, activeModal]);
+
+  // 2. Fullscreen API Request & Exit Monitoring
+  useEffect(() => {
+    if (assessmentStatus !== 'active') return;
+
     const enterFullscreen = async () => {
       try {
         if (!document.fullscreenElement) {
@@ -53,10 +117,16 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
     enterFullscreen();
 
     const handleFullscreenChange = () => {
-      if (!document.fullscreenElement && !isSubmitted) {
-        setIsFullscreenExited(true);
-      } else {
-        setIsFullscreenExited(false);
+      if (!document.fullscreenElement && assessmentStatus === 'active') {
+        setFullscreenExitCount(prev => {
+          const nextExit = prev + 1;
+          if (nextExit === 1) {
+            triggerViolation('Fullscreen Exit', 'Warning: You exited full-screen mode. Please return to full-screen to continue your assessment.');
+          } else if (nextExit >= 2) {
+            terminateAssessment('Assessment terminated due to repeated full-screen violations.');
+          }
+          return nextExit;
+        });
       }
     };
 
@@ -64,17 +134,197 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
     return () => {
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
     };
-  }, [isSubmitted]);
+  }, [assessmentStatus]);
+
+  // 3. Real-time Anti-cheating & Attention Monitoring via Canvas
+  useEffect(() => {
+    if (assessmentStatus !== 'active' || cameraPermission !== 'granted') return;
+
+    let consecutiveAbsenceCount = 0;
+    let consecutiveOffCenterCount = 0;
+    let consecutiveMultipleFacesCount = 0;
+
+    const intervalId = setInterval(() => {
+      const video = videoRef.current;
+      if (!video || video.readyState !== 4) return;
+
+      const canvas = canvasRef.current || document.createElement('canvas');
+      canvas.width = 160;
+      canvas.height = 120;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      ctx.drawImage(video, 0, 0, 160, 120);
+      const imageData = ctx.getImageData(0, 0, 160, 120);
+      const data = imageData.data;
+
+      let skinPixelCount = 0;
+      let leftSkinPixels = 0;
+      let rightSkinPixels = 0;
+
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+
+        // Standard YCbCr skin tone detection logic
+        const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
+        const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
+
+        if (r > 60 && g > 40 && b > 20 && cr > 133 && cr < 173 && cb > 77 && cb < 127) {
+          skinPixelCount++;
+          const pixelIdx = i / 4;
+          const x = pixelIdx % 160;
+          if (x < 55) leftSkinPixels++;
+          else if (x > 105) rightSkinPixels++;
+        }
+      }
+
+      // 1. Check if face is missing from frame (< 350 skin pixels)
+      if (skinPixelCount < 350) {
+        consecutiveAbsenceCount++;
+        if (consecutiveAbsenceCount >= 7) { // ~3.5 continuous seconds
+          consecutiveAbsenceCount = 0;
+          triggerViolation('Face Missing', 'Student left the camera frame or face is not visible. Please keep your face clearly visible.');
+        }
+      } else {
+        consecutiveAbsenceCount = 0;
+      }
+
+      // 2. Check if student is looking significantly away / head turned away
+      const sideRatio = (leftSkinPixels + 1) / (rightSkinPixels + 1);
+      if (sideRatio > 4.2 || sideRatio < 0.23) {
+        consecutiveOffCenterCount++;
+        if (consecutiveOffCenterCount >= 7) { // ~3.5 continuous seconds
+          consecutiveOffCenterCount = 0;
+          triggerViolation('Sustained Gaze Shift', 'Sustained head movement / looking away from screen detected. Please keep your eyes focused on the assessment.');
+        }
+      } else {
+        consecutiveOffCenterCount = 0;
+      }
+
+      // 3. Check for multiple faces
+      if (skinPixelCount > 6800 && leftSkinPixels > 2200 && rightSkinPixels > 2200) {
+        consecutiveMultipleFacesCount++;
+        if (consecutiveMultipleFacesCount >= 7) {
+          consecutiveMultipleFacesCount = 0;
+          triggerViolation('Multiple Faces Detected', 'Multiple faces detected in the camera frame. The assessment must be taken alone.');
+        }
+      } else {
+        consecutiveMultipleFacesCount = 0;
+      }
+    }, 500);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [assessmentStatus, cameraPermission, currentIndex]);
+
+  // Centralized Warning Trigger
+  const triggerViolation = (type: string, message: string) => {
+    if (assessmentStatus !== 'active') return;
+
+    const currentQNum = suiteData.questions[currentIndex]?.question_number || currentIndex + 1;
+
+    setViolationsLog(prev => [
+      ...prev,
+      { type, timestamp: new Date().toISOString(), question_number: currentQNum }
+    ]);
+
+    setWarningCount(prev => {
+      const newCount = prev + 1;
+      if (newCount >= 4) {
+        terminateAssessment('Assessment terminated due to repeated violations.');
+        return newCount;
+      }
+
+      setCurrentWarningDetails({
+        title: `Warning ${newCount}/3`,
+        message: message,
+        violationType: type
+      });
+      setActiveModal('warning');
+
+      return newCount;
+    });
+  };
+
+  // Terminate Assessment
+  const terminateAssessment = async (reason: string) => {
+    setAssessmentStatus('terminated');
+    setActiveModal('terminated');
+
+    // Stop camera stream
+    if (mediaStream) {
+      mediaStream.getTracks().forEach(t => t.stop());
+      setMediaStream(null);
+    }
+
+    // Exit fullscreen
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      }
+    } catch {}
+
+    const { questions, subject_code, subject_name, total_questions } = suiteData;
+    let correctCount = 0;
+    let wrongCount = 0;
+    let unansweredCount = 0;
+
+    const questionDetails: QuestionReviewDetail[] = questions.map(q => {
+      const userChoice = userAnswers[q.question_number];
+      const isAns = Boolean(userChoice);
+      const isCorrect = isAns && userChoice.toUpperCase() === q.correct_answer.toUpperCase();
+
+      if (!isAns) unansweredCount++;
+      else if (isCorrect) correctCount++;
+      else wrongCount++;
+
+      return {
+        question_number: q.question_number,
+        unit: q.unit,
+        topic: q.topic,
+        difficulty: q.difficulty,
+        question: q.question,
+        user_answer: userChoice || '',
+        correct_answer: q.correct_answer,
+        is_correct: isCorrect,
+        explanation: q.explanation
+      };
+    });
+
+    const total = total_questions || questions.length;
+    const percentage = total > 0 ? Math.round((correctCount / total) * 100) : 0;
+
+    const record = await assessmentHistoryService.saveResult({
+      subject_code,
+      subject_name,
+      total_questions: total,
+      correct_answers: correctCount,
+      wrong_answers: wrongCount,
+      unanswered: unansweredCount,
+      score: correctCount,
+      percentage,
+      completed_at: new Date().toISOString(),
+      details: questionDetails,
+      status: 'terminated',
+      warning_count: warningCount + 1,
+      violations: violationsLog
+    });
+
+    setCompletedRecord(record);
+  };
 
   const requestReentryFullscreen = async () => {
     try {
       if (!document.fullscreenElement) {
         await document.documentElement.requestFullscreen();
       }
-      setIsFullscreenExited(false);
+      setActiveModal('none');
     } catch (err) {
       console.warn('Re-entry fullscreen error:', err);
-      setIsFullscreenExited(false);
+      setActiveModal('none');
     }
   };
 
@@ -84,7 +334,7 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
   const selectedKey = userAnswers[qNum];
 
   const handleSelectOption = (optionKey: string) => {
-    if (isSubmitted || isSubmitting) return;
+    if (isSubmitted || isSubmitting || assessmentStatus === 'terminated') return;
     setUserAnswers(prev => ({
       ...prev,
       [qNum]: optionKey
@@ -104,7 +354,7 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
   };
 
   const handleFinishAssessment = async () => {
-    if (isSubmitting) return;
+    if (isSubmitting || assessmentStatus === 'terminated') return;
     setIsSubmitting(true);
 
     let correctCount = 0;
@@ -137,6 +387,12 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
     const percentage = total > 0 ? Math.round((correctCount / total) * 100) : 0;
     const score = correctCount;
 
+    // Stop camera stream completely
+    if (mediaStream) {
+      mediaStream.getTracks().forEach(t => t.stop());
+      setMediaStream(null);
+    }
+
     // Exit browser fullscreen
     try {
       if (document.fullscreenElement) {
@@ -157,11 +413,15 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
       score,
       percentage,
       completed_at: new Date().toISOString(),
-      details: questionDetails
+      details: questionDetails,
+      status: 'completed',
+      warning_count: warningCount,
+      violations: violationsLog
     });
 
     setCompletedRecord(record);
     setIsSubmitted(true);
+    setAssessmentStatus('submitted');
     setIsSubmitting(false);
   };
 
@@ -179,6 +439,11 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider bg-[#C7FF4A]/10 text-[#C7FF4A] border border-[#C7FF4A]/30 uppercase">
                   Assessment Completed
                 </span>
+                {completedRecord.warning_count !== undefined && (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider bg-white/5 text-[#A6A1B2] border border-white/10">
+                    Warnings: {completedRecord.warning_count}/3
+                  </span>
+                )}
               </div>
               <h2 className="text-2xl font-extrabold text-[#F7F5FA] tracking-tight">
                 {completedRecord.subject_name}
@@ -272,109 +537,6 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
             </div>
           </div>
         </div>
-
-        {/* Question Review Section */}
-        {completedRecord.details && completedRecord.details.length > 0 && (
-          <div className="space-y-4">
-            <h3 className="text-lg font-bold text-[#F7F5FA] flex items-center gap-2">
-              <span>Review Answers</span>
-              <span className="text-xs font-normal text-[#A6A1B2]">({completedRecord.details.length} Questions)</span>
-            </h3>
-
-            <div className="space-y-4">
-              {completedRecord.details.map((q) => {
-                const userAnsKey = q.user_answer;
-                const isAnsProvided = Boolean(userAnsKey);
-                const isCorrect = q.is_correct;
-
-                const originalQ = questions.find(item => item.question_number === q.question_number);
-                const userOptObj = originalQ?.options.find(o => o.key.toUpperCase() === (userAnsKey || '').toUpperCase());
-                const correctOptObj = originalQ?.options.find(o => o.key.toUpperCase() === q.correct_answer.toUpperCase());
-
-                return (
-                  <div
-                    key={q.question_number}
-                    className={`p-6 rounded-2xl border transition-all ${
-                      !isAnsProvided
-                        ? 'bg-[#13111C] border-amber-500/30'
-                        : isCorrect
-                        ? 'bg-emerald-950/20 border-emerald-500/30'
-                        : 'bg-rose-950/20 border-rose-500/30'
-                    }`}
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                      <div className="flex items-center gap-2 text-xs text-[#A6A1B2]">
-                        <span className="font-bold text-white">Question {q.question_number}</span>
-                        <span>•</span>
-                        <span>{q.unit}</span>
-                        <span>•</span>
-                        <span>{q.topic}</span>
-                      </div>
-
-                      <div>
-                        {!isAnsProvided ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
-                            <HelpCircle className="w-3.5 h-3.5" /> Unanswered
-                          </span>
-                        ) : isCorrect ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> ✓ Correct
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30">
-                            <XCircle className="w-3.5 h-3.5" /> ✕ Wrong
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <h4 className="text-base font-semibold text-[#F7F5FA] mb-4 leading-relaxed">
-                      {q.question}
-                    </h4>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4 text-xs">
-                      <div className={`p-3.5 rounded-xl border ${
-                        !isAnsProvided
-                          ? 'bg-amber-500/5 border-amber-500/20 text-amber-200'
-                          : isCorrect
-                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200'
-                          : 'bg-rose-500/10 border-rose-500/30 text-rose-200'
-                      }`}>
-                        <span className="font-bold block text-[11px] uppercase tracking-wider mb-1 text-white/60">
-                          Your Answer:
-                        </span>
-                        <span className="font-semibold text-sm">
-                          {userAnsKey ? `${userAnsKey}. ${userOptObj ? userOptObj.text : ''}` : '—'}
-                        </span>
-                      </div>
-
-                      <div className="p-3.5 rounded-xl border bg-emerald-500/10 border-emerald-500/30 text-emerald-200">
-                        <span className="font-bold block text-[11px] uppercase tracking-wider mb-1 text-emerald-400/70">
-                          Correct Answer:
-                        </span>
-                        <span className="font-semibold text-sm text-emerald-300">
-                          {q.correct_answer}. {correctOptObj ? correctOptObj.text : ''}
-                        </span>
-                      </div>
-                    </div>
-
-                    {q.explanation && (
-                      <div className="p-4 rounded-xl bg-[#08070E] border border-white/10 text-xs space-y-1">
-                        <div className="font-bold text-[#C7FF4A] flex items-center gap-1.5 mb-1">
-                          <Sparkles className="w-3.5 h-3.5" />
-                          <span>Explanation:</span>
-                        </div>
-                        <p className="text-[#A6A1B2] leading-relaxed">
-                          {q.explanation}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
       </div>
     );
   }
@@ -386,17 +548,71 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-[#08090D] text-[#F7F5FA] flex flex-col overflow-y-auto min-h-screen">
-      {/* Fullscreen Exit Protection Warning Overlay */}
-      {isFullscreenExited && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-6">
-          <div className="bg-[#13111C] border border-amber-500/40 rounded-2xl p-8 max-w-md text-center space-y-5 shadow-2xl">
-            <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400">
-              <ShieldAlert className="w-8 h-8" />
+      
+      {/* Floating Webcam Preview (Top-Right, Non-Intrusive) */}
+      {assessmentStatus === 'active' && cameraPermission === 'granted' && (
+        <div className="fixed top-16 right-6 w-36 h-28 rounded-xl border border-white/20 bg-black/90 shadow-2xl z-40 overflow-hidden flex flex-col group transition-all">
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="w-full h-full object-cover transform -scale-x-100"
+          />
+          <div className="absolute bottom-1 left-1.5 right-1.5 flex items-center justify-between text-[9px] bg-black/70 px-1.5 py-0.5 rounded text-white font-mono">
+            <span className="flex items-center gap-1 text-emerald-400 font-bold">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              CAM ACTIVE
+            </span>
+            <span className="text-[#A6A1B2]">Warns: {warningCount}/3</span>
+          </div>
+        </div>
+      )}
+
+      {/* Hidden Canvas for Canvas Image Sampling */}
+      <canvas ref={canvasRef} className="hidden" />
+
+      {/* MODAL 1: CAMERA PERMISSION DENIED */}
+      {activeModal === 'camera_permission' && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-6">
+          <div className="bg-[#13111C] border border-red-500/40 rounded-2xl p-8 max-w-md text-center space-y-5 shadow-2xl">
+            <div className="w-16 h-16 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center mx-auto text-red-400">
+              <CameraOff className="w-8 h-8" />
             </div>
             <div className="space-y-2">
-              <h3 className="text-xl font-bold text-white">Exam Mode Paused</h3>
+              <h3 className="text-xl font-bold text-white">Camera Access Required</h3>
               <p className="text-xs text-[#A6A1B2] leading-relaxed">
-                Full-screen browser focus was exited. Click below to re-enter full-screen mode and continue your exam. Your answers are saved.
+                Webcam monitoring is required for this proctored assessment. Please allow camera access in your browser settings to begin your test.
+              </p>
+            </div>
+            <Button
+              variant="primary"
+              onClick={() => window.location.reload()}
+              className="bg-[#C7FF4A] text-black font-bold hover:bg-[#b8f533] w-full"
+            >
+              <Camera className="w-4 h-4 mr-2" />
+              Grant Camera Access & Retry
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: CENTRALIZED WARNING MODAL (WARNING 1..3) */}
+      {activeModal === 'warning' && currentWarningDetails && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-6">
+          <div className="bg-[#13111C] border border-amber-500/40 rounded-2xl p-8 max-w-md text-center space-y-5 shadow-2xl">
+            <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400">
+              <AlertTriangle className="w-8 h-8 animate-pulse" />
+            </div>
+            <div className="space-y-2">
+              <span className="px-3 py-1 rounded-full text-xs font-bold uppercase bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                {currentWarningDetails.title}
+              </span>
+              <h3 className="text-lg font-bold text-white pt-2">
+                {currentWarningDetails.violationType}
+              </h3>
+              <p className="text-xs text-[#A6A1B2] leading-relaxed">
+                {currentWarningDetails.message}
               </p>
             </div>
             <Button
@@ -405,14 +621,43 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
               className="bg-[#C7FF4A] text-black font-bold hover:bg-[#b8f533] w-full"
             >
               <Maximize2 className="w-4 h-4 mr-2" />
-              Resume Fullscreen Exam
+              Acknowledge & Continue Assessment
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: ASSESSMENT TERMINATED (4TH VIOLATION OR 2ND FULLSCREEN EXIT) */}
+      {activeModal === 'terminated' && (
+        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-6">
+          <div className="bg-[#13111C] border border-red-500/50 rounded-2xl p-8 max-w-md text-center space-y-5 shadow-2xl">
+            <div className="w-16 h-16 rounded-full bg-red-500/15 border border-red-500/40 flex items-center justify-center mx-auto text-red-400">
+              <ShieldAlert className="w-8 h-8" />
+            </div>
+            <div className="space-y-2">
+              <span className="px-3 py-1 rounded-full text-xs font-bold uppercase bg-red-500/10 text-red-400 border border-red-500/30">
+                Assessment Terminated
+              </span>
+              <h3 className="text-xl font-bold text-white pt-1">
+                Attempt Cancelled
+              </h3>
+              <p className="text-xs text-[#A6A1B2] leading-relaxed">
+                Assessment terminated due to repeated violations. Your answers up to this point have been saved.
+              </p>
+            </div>
+            <Button
+              variant="primary"
+              onClick={() => completedRecord && onFinishAssessment(completedRecord)}
+              className="bg-[#C7FF4A] text-black font-bold hover:bg-[#b8f533] w-full"
+            >
+              View Assessment Summary
             </Button>
           </div>
         </div>
       )}
 
       {/* Top Header Bar */}
-      <header className="bg-[#0D0B14] border-b border-white/10 px-6 py-4 flex items-center justify-between gap-4 sticky top-0 z-40">
+      <header className="bg-[#0D0B14] border-b border-white/10 px-6 py-4 flex items-center justify-between gap-4 sticky top-0 z-30">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-[#C7FF4A]/10 border border-[#C7FF4A]/30 flex items-center justify-center text-[#C7FF4A] font-black text-sm">
             L
@@ -421,8 +666,12 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
             <h1 className="text-sm font-extrabold text-white tracking-wider uppercase">
               {subject_name}
             </h1>
-            <p className="text-[11px] font-mono text-[#A6A1B2]">
-              Code: {subject_code} • Full-Screen Exam Mode
+            <p className="text-[11px] font-mono text-[#A6A1B2] flex items-center gap-2">
+              <span>Code: {subject_code}</span>
+              <span>•</span>
+              <span className="text-[#C7FF4A] font-semibold flex items-center gap-1">
+                <Camera className="w-3 h-3" /> Proctored Exam Mode
+              </span>
             </p>
           </div>
         </div>
@@ -499,6 +748,7 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
                   <button
                     key={opt.key}
                     onClick={() => handleSelectOption(opt.key)}
+                    disabled={assessmentStatus === 'terminated'}
                     className={`w-full text-left p-4 rounded-xl border transition-all flex items-start gap-3.5 group ${
                       isSelected
                         ? 'bg-[#C7FF4A]/10 border-[#C7FF4A] text-[#F7F5FA] shadow-lg shadow-[#C7FF4A]/5 ring-1 ring-[#C7FF4A]'
@@ -533,7 +783,7 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
           <Button
             variant="outline"
             onClick={handlePrevious}
-            disabled={currentIndex === 0}
+            disabled={currentIndex === 0 || assessmentStatus === 'terminated'}
             className="text-xs"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
@@ -545,6 +795,7 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
               variant="primary"
               isLoading={isSubmitting}
               onClick={handleFinishAssessment}
+              disabled={assessmentStatus === 'terminated'}
               className="bg-[#C7FF4A] text-black font-bold hover:bg-[#b8f533] shadow-lg shadow-[#C7FF4A]/20"
             >
               <CheckCircle2 className="w-4 h-4 mr-2" />
@@ -554,6 +805,7 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
             <Button
               variant="primary"
               onClick={handleNext}
+              disabled={assessmentStatus === 'terminated'}
               className="text-xs"
             >
               Next
