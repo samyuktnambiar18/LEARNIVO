@@ -216,6 +216,23 @@ export const authService = {
     }
   },
 
+  loginWithGoogleEmail: (email: string, name?: string): User => {
+    const cleanEmail = email.trim();
+    const displayName = name || cleanEmail.split('@')[0];
+    const formattedName = displayName.charAt(0).toUpperCase() + displayName.slice(1);
+    
+    const user: User = {
+      id: 'google_' + Math.random().toString(36).substring(2, 11),
+      name: formattedName,
+      email: cleanEmail,
+      avatar: 'https://lh3.googleusercontent.com/a/default-user',
+      createdAt: new Date().toISOString()
+    };
+
+    storageService.saveUser(user);
+    return user;
+  },
+
   saveOnboardingProfile: (profile: Omit<LearningProfile, 'userId' | 'completedOnboarding'>): LearningProfile => {
     const user = storageService.getUser();
     const fullProfile: LearningProfile = {
