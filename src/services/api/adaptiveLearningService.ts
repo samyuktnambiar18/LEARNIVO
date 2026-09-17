@@ -377,82 +377,89 @@ export function getFallbackAssessmentSuite(): AssessmentSuiteData {
   };
 }
 
+export function findQuestionsContainer(raw: any): any {
+  if (!raw) return null;
+
+  let data = raw;
+  if (typeof data === 'string') {
+    try {
+      const cleaned = data.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+      data = JSON.parse(cleaned);
+    } catch {
+      return null;
+    }
+  }
+
+  const queue: any[] = [data];
+  const visited = new Set<any>();
+
+  while (queue.length > 0) {
+    let current = queue.shift();
+    if (!current || visited.has(current)) continue;
+    if (typeof current === 'object') visited.add(current);
+
+    if (typeof current === 'string') {
+      try {
+        const cleaned = current.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+        current = JSON.parse(cleaned);
+      } catch {
+        continue;
+      }
+    }
+
+    if (Array.isArray(current)) {
+      for (const item of current) {
+        queue.push(item);
+      }
+      continue;
+    }
+
+    if (current && typeof current === 'object') {
+      if (Array.isArray(current.questions) && current.questions.length > 0) {
+        return current;
+      }
+
+      const keysToTry = [
+        'output',
+        'data',
+        'result',
+        'response',
+        'responseData',
+        '_responseData',
+        '_RESPONSEDATA',
+        'payload',
+        'body',
+        'items',
+        'json',
+        'text'
+      ];
+
+      for (const k of keysToTry) {
+        if (current[k] !== undefined && current[k] !== null) {
+          queue.push(current[k]);
+        }
+      }
+
+      for (const k of Object.keys(current)) {
+        if (!keysToTry.includes(k) && current[k] && (typeof current[k] === 'object' || typeof current[k] === 'string')) {
+          queue.push(current[k]);
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
 export function parseAssessmentPayload(rawData: any): AssessmentSuiteData | null {
   if (!rawData) return null;
 
-  const tryParseJson = (val: any) => {
-    if (typeof val === 'string') {
-      try {
-        const cleaned = val.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-        return JSON.parse(cleaned);
-      } catch {
-        const first = val.indexOf('{');
-        const last = val.lastIndexOf('}');
-        if (first !== -1 && last > first) {
-          try {
-            return JSON.parse(val.slice(first, last + 1));
-          } catch {}
-        }
-      }
-    }
-    return val;
-  };
-
-  const parsedData = tryParseJson(rawData);
-  const candidates: any[] = [];
-
-  if (Array.isArray(parsedData)) {
-    candidates.push(...parsedData);
-  } else if (parsedData && typeof parsedData === 'object') {
-    candidates.push(parsedData);
-  }
-
-  let foundContainer: any = null;
-  let questionsArray: any[] | null = null;
-
-  for (const c of candidates) {
-    if (!c || typeof c !== 'object') continue;
-
-    if (Array.isArray(c.questions)) {
-      foundContainer = c;
-      questionsArray = c.questions;
-      break;
-    }
-
-    const subWrappers = [
-      c._RESPONSEDATA,
-      c.responseData,
-      c.output,
-      c.data,
-      c.result,
-      c.body,
-      c.payload,
-      c.response,
-      c.text
-    ];
-
-    for (const sub of subWrappers) {
-      if (!sub) continue;
-      const parsedSub = tryParseJson(sub);
-      if (parsedSub && typeof parsedSub === 'object') {
-        if (Array.isArray(parsedSub.questions)) {
-          foundContainer = parsedSub;
-          questionsArray = parsedSub.questions;
-          break;
-        }
-      }
-    }
-    if (questionsArray) break;
-  }
-
-  if (!questionsArray && Array.isArray(parsedData) && parsedData.length > 0 && (parsedData[0].question || parsedData[0].question_number)) {
-    foundContainer = { subject_code: '23ITT201', subject_name: 'DATA STRUCTURES', total_questions: parsedData.length, questions: parsedData };
-    questionsArray = parsedData;
-  }
-
-  if (!questionsArray || questionsArray.length === 0) {
+  const foundContainer = findQuestionsContainer(rawData);
+  if (!foundContainer || !Array.isArray(foundContainer.questions) || foundContainer.questions.length === 0) {
     return null;
   }
+
+  const questionsArray: any[] = foundContainer.questions;
 
   const subject_code = String(foundContainer?.subject_code || foundContainer?.subjectCode || '23ITT201');
   const subject_name = String(foundContainer?.subject_name || foundContainer?.subjectName || 'DATA STRUCTURES');
