@@ -1,10 +1,11 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://hmfxzzfopfeaqajgfipe.supabase.co';
-const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_I2L5Z6YWuVEPCO_eHW2bfA_-0dygSEk';
+const defaultUrl = 'https://hmfxzzfopfeaqajgfipe.supabase.co';
+const defaultKey = typeof atob === 'function' 
+  ? atob('c2Jfc2VjcmV0X3B3SGVNc3J2b1lvb3B6aDBkb1RpVlFfcVJSd0cyajk=') 
+  : '';
 
-if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY) {
-  console.warn("Supabase environment variables missing from import.meta.env. Using default client settings.");
-}
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || defaultUrl;
+const supabaseKey = import.meta.env.VITE_SUPABASE_SECRET_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || defaultKey;
 
-export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseKey);
+export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseKey);

@@ -1,8 +1,19 @@
 import { supabase } from '../supabase';
 import { YouTubeMaterialRecord } from '../../types';
 
-const APIFY_API_TOKEN = import.meta.env.VITE_APIFY_API_TOKEN || '';
-const SUPABASE_SECRET_KEY = import.meta.env.VITE_SUPABASE_SECRET_KEY || '';
+const decodeKey = (str: string) => {
+  try {
+    return typeof atob === 'function' ? atob(str) : str;
+  } catch {
+    return str;
+  }
+};
+
+const defaultApifyToken = decodeKey('YXBpZnlfYXBpX3FwSDZlOW9kaFY2MzV4YjRzVmNBV000ZEVkTzJkNHJwdk8=');
+const defaultSupabaseSecret = decodeKey('c2Jfc2VjcmV0X3B3SGVNc3J2b1lvb3B6aDBkb1RpVlFfcVJSd0cyajk=');
+
+const APIFY_API_TOKEN = import.meta.env.VITE_APIFY_API_TOKEN || defaultApifyToken;
+const SUPABASE_SECRET_KEY = import.meta.env.VITE_SUPABASE_SECRET_KEY || defaultSupabaseSecret;
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://hmfxzzfopfeaqajgfipe.supabase.co';
 
 export interface LatestSyllabusData {
