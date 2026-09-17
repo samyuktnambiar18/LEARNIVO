@@ -100,12 +100,12 @@ export const MaterialsPage: React.FC = () => {
 
                   <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-white/10">
                     <div className="flex items-center gap-3">
-                      <Link to="/pages/chat.html">
+                      <Link to="/ai-tutor">
                         <Button variant="outline" size="sm">
                           Study with AI
                         </Button>
                       </Link>
-                      <Link to="/pages/practice.html">
+                      <Link to="/practice">
                         <Button variant="ghost" size="sm">
                           Practice Problems
                         </Button>

@@ -62,7 +62,7 @@ export const DashboardPage: React.FC = () => {
                   Upload PDF
                 </Button>
               </Link>
-              <Link to="/pages/practice.html">
+              <Link to="/practice">
                 <Button variant="secondary" size="sm">
                   <BrainCircuit className="w-4 h-4 mr-1.5" />
                   Practice
@@ -116,7 +116,7 @@ export const DashboardPage: React.FC = () => {
                   </div>
                 </div>
 
-                <Link to="/pages/chat.html">
+                <Link to="/ai-tutor">
                   <Button variant="outline" size="sm">
                     <MessageSquareCode className="w-4 h-4 mr-1.5" />
                     Ask AI Tutor

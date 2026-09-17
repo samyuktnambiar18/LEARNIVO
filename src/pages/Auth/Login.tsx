@@ -25,7 +25,7 @@ export const Login: React.FC = () => {
       if (!profile || !profile.completedOnboarding) {
         navigate('/onboarding');
       } else {
-        navigate('/pages/student-dashboard.html');
+        navigate('/dashboard');
       }
     } catch (err: any) {
       setError(err?.message || 'Invalid email or password.');
@@ -38,7 +38,7 @@ export const Login: React.FC = () => {
     if (!profile || !profile.completedOnboarding) {
       navigate('/onboarding');
     } else {
-      navigate('/pages/student-dashboard.html');
+      navigate('/dashboard');
     }
   };
 

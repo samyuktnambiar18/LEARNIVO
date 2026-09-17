@@ -21,7 +21,7 @@ export const Onboarding: React.FC = () => {
       level,
       dailyTargetMinutes
     });
-    navigate('/pages/student-dashboard.html');
+    navigate('/dashboard');
   };
 
   return (

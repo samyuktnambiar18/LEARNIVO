@@ -46,7 +46,7 @@ export const ProgressPage: React.FC = () => {
             title="No progress data available yet"
             description="Your progress and mastery charts will appear here after you complete your first practice or assessment session."
             actionLabel="Start Practice"
-            onAction={() => window.location.href = '/pages/practice.html'}
+            onAction={() => window.location.href = '/practice'}
           />
         ) : (
           <div className="space-y-6">

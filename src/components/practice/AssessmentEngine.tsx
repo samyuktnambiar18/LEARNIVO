@@ -152,7 +152,7 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({ questions, o
           </Button>
           <Button
             variant="primary"
-            onClick={() => window.location.href = '/pages/progress.html'}
+            onClick={() => window.location.href = '/progress'}
           >
             View Progress Analytics
           </Button>

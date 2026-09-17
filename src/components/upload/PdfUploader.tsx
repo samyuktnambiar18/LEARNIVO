@@ -129,13 +129,13 @@ export const PdfUploader: React.FC<PdfUploaderProps> = ({ onSuccess }) => {
           )}
 
           <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-            <Link to="/pages/chat.html">
+            <Link to="/ai-tutor">
               <Button variant="primary" size="sm">
                 <MessageSquareCode className="w-4 h-4 mr-1.5" />
                 Ask AI Tutor
               </Button>
             </Link>
-            <Link to="/pages/practice.html">
+            <Link to="/practice">
               <Button variant="secondary" size="sm">
                 <BrainCircuit className="w-4 h-4 mr-1.5" />
                 Practice Questions

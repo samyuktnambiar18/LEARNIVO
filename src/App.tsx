@@ -23,7 +23,7 @@ export const App: React.FC = () => {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Landing Page */}
+        {/* Landing Page (Official Current 2nd Design) */}
         <Route path="/" element={<LandingPage />} />
 
         {/* Authentication & Onboarding */}
@@ -34,33 +34,37 @@ export const App: React.FC = () => {
         {/* Upload Page */}
         <Route path="/upload" element={<UploadPage />} />
 
-        {/* Dashboard Routes & HTML Aliases */}
+        {/* Dashboard */}
         <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/pages/student-dashboard.html" element={<DashboardPage />} />
 
-        {/* Practice Routes & HTML Aliases */}
-        <Route path="/practice" element={<PracticePage />} />
-        <Route path="/pages/practice.html" element={<PracticePage />} />
-
-        {/* Progress Routes & HTML Aliases */}
-        <Route path="/progress" element={<ProgressPage />} />
-        <Route path="/pages/progress.html" element={<ProgressPage />} />
-
-        {/* Chat Routes & HTML Aliases */}
-        <Route path="/chat" element={<ChatPage />} />
-        <Route path="/pages/chat.html" element={<ChatPage />} />
-
-        {/* Assessment Routes & HTML Aliases */}
-        <Route path="/test" element={<AssessmentPage />} />
-        <Route path="/assessment" element={<AssessmentPage />} />
-        <Route path="/pages/test.html" element={<AssessmentPage />} />
-
-        {/* Materials */}
+        {/* Courses / Materials */}
+        <Route path="/courses" element={<MaterialsPage />} />
         <Route path="/materials" element={<MaterialsPage />} />
 
-        {/* Settings Routes & HTML Aliases */}
+        {/* Practice */}
+        <Route path="/practice" element={<PracticePage />} />
+
+        {/* AI Tutor / Chat */}
+        <Route path="/ai-tutor" element={<ChatPage />} />
+        <Route path="/chat" element={<ChatPage />} />
+
+        {/* Progress */}
+        <Route path="/progress" element={<ProgressPage />} />
+
+        {/* Assessment */}
+        <Route path="/assessment" element={<AssessmentPage />} />
+        <Route path="/test" element={<AssessmentPage />} />
+
+        {/* Settings */}
         <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/pages/settings.html" element={<SettingsPage />} />
+
+        {/* Legacy HTML Route Redirects (Always map to clean SPA routes) */}
+        <Route path="/pages/student-dashboard.html" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/pages/practice.html" element={<Navigate to="/practice" replace />} />
+        <Route path="/pages/progress.html" element={<Navigate to="/progress" replace />} />
+        <Route path="/pages/chat.html" element={<Navigate to="/ai-tutor" replace />} />
+        <Route path="/pages/test.html" element={<Navigate to="/assessment" replace />} />
+        <Route path="/pages/settings.html" element={<Navigate to="/settings" replace />} />
 
         {/* Fallback Catch-all */}
         <Route path="*" element={<Navigate to="/" replace />} />

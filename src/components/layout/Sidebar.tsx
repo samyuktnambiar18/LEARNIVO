@@ -26,44 +26,44 @@ export const Sidebar: React.FC<SidebarProps> = ({ onLogout, className = '' }) =>
   const navItems = [
     {
       label: 'Dashboard',
-      path: '/pages/student-dashboard.html',
-      altPaths: ['/dashboard'],
+      path: '/dashboard',
+      altPaths: ['/pages/student-dashboard.html'],
       icon: LayoutDashboard
     },
     {
       label: 'Practice',
-      path: '/pages/practice.html',
-      altPaths: ['/practice'],
+      path: '/practice',
+      altPaths: ['/pages/practice.html'],
       icon: BrainCircuit
     },
     {
       label: 'Progress',
-      path: '/pages/progress.html',
-      altPaths: ['/progress'],
+      path: '/progress',
+      altPaths: ['/pages/progress.html'],
       icon: BarChart3
     },
     {
       label: 'AI Tutor',
-      path: '/pages/chat.html',
-      altPaths: ['/chat'],
+      path: '/ai-tutor',
+      altPaths: ['/chat', '/pages/chat.html'],
       icon: MessageSquareCode
     },
     {
       label: 'Assessment',
-      path: '/pages/test.html',
-      altPaths: ['/assessment', '/test'],
+      path: '/assessment',
+      altPaths: ['/test', '/pages/test.html'],
       icon: FileCheck2
     },
     {
       label: 'Materials',
       path: '/materials',
-      altPaths: ['/upload'],
+      altPaths: ['/courses', '/upload'],
       icon: FolderOpen
     },
     {
       label: 'Settings',
-      path: '/pages/settings.html',
-      altPaths: ['/settings'],
+      path: '/settings',
+      altPaths: ['/pages/settings.html'],
       icon: Settings
     },
   ];
