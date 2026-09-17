@@ -21,7 +21,8 @@ import {
   EyeOff,
   X,
   ShieldCheck,
-  Check
+  Check,
+  RefreshCw
 } from 'lucide-react';
 import {
   AssessmentSuiteData,
@@ -29,6 +30,7 @@ import {
   UserAssessmentAnswers
 } from '../../types';
 import { assessmentHistoryService, AssessmentHistoryRecord, QuestionReviewDetail } from '../../services/assessmentHistoryService';
+import { ProctoringManager, CameraStatus, FaceStatus, ProctoringViolationEvent, ViolationType } from '../../services/proctoring/ProctoringManager';
 import { Button } from '../ui/Button';
 
 interface AssessmentEngineProps {
@@ -48,10 +50,9 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
 
   // Assessment Stage & Monitoring State
   const [stage, setStage] = useState<'pre_check' | 'active' | 'submitted' | 'terminated'>('pre_check');
-  const [cameraPermission, setCameraPermission] = useState<'prompt' | 'granted' | 'denied'>('prompt');
+  const [cameraStatus, setCameraStatus] = useState<CameraStatus>('requesting');
+  const [faceStatus, setFaceStatus] = useState<FaceStatus>('no-face');
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
-  const [isStreamActive, setIsStreamActive] = useState<boolean>(false);
-  const [isFaceDetectedPreCheck, setIsFaceDetectedPreCheck] = useState<boolean>(false);
   const [preCheckError, setPreCheckError] = useState<string | null>(null);
 
   // Violation & Warning State
@@ -62,64 +63,86 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const preCheckVideoRef = useRef<HTMLVideoElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const proctoringRef = useRef<ProctoringManager | null>(null);
 
-  // Cooldown & Persistence Refs (Prevent double-counting violations)
-  const cooldownUntilRef = useRef<number>(0); // Timestamp until which new violations are suppressed
-  const warningCountRef = useRef<number>(0); // Keep ref synced with warningCount state for async callbacks
+  if (!proctoringRef.current) {
+    proctoringRef.current = new ProctoringManager();
+  }
+  const proctoringManager = proctoringRef.current;
+
   const stageRef = useRef<'pre_check' | 'active' | 'submitted' | 'terminated'>('pre_check');
+  const currentIndexRef = useRef<number>(0);
 
   useEffect(() => {
     stageRef.current = stage;
   }, [stage]);
 
   useEffect(() => {
-    warningCountRef.current = warningCount;
-  }, [warningCount]);
+    currentIndexRef.current = currentIndex;
+  }, [currentIndex]);
 
-  // 1. Initial Camera Permission & Pre-check Stream Acquisition
+  // Check if session was previously terminated
+  useEffect(() => {
+    const sessionTerminatedKey = `learnivo_terminated_${suiteData.subject_code}`;
+    const savedTerminated = sessionStorage.getItem(sessionTerminatedKey);
+    if (savedTerminated) {
+      try {
+        const record = JSON.parse(savedTerminated);
+        setCompletedRecord(record);
+        setStage('terminated');
+        setActiveModal('terminated');
+        setWarningCount(3);
+        return;
+      } catch (e) {
+        console.warn('Failed to parse terminated session data:', e);
+      }
+    }
+  }, [suiteData.subject_code]);
+
+  // 1. Initial Camera Request & Monitoring Setup
   useEffect(() => {
     let isMounted = true;
 
     async function initCamera() {
       setPreCheckError(null);
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 320 }, height: { ideal: 240 }, facingMode: 'user' }
-        });
-
-        if (!isMounted) {
-          stream.getTracks().forEach(t => t.stop());
-          return;
-        }
+        const stream = await proctoringManager.requestCamera();
+        if (!isMounted) return;
 
         setMediaStream(stream);
-        setCameraPermission('granted');
-        setIsStreamActive(true);
-
-        // Bind camera disconnect/ended listener
-        const videoTrack = stream.getVideoTracks()[0];
-        if (videoTrack) {
-          videoTrack.onended = () => {
-            if (isMounted) {
-              setIsStreamActive(false);
-              setPreCheckError('Camera stream disconnected or stopped.');
-              if (stageRef.current === 'active') {
-                setActiveModal('camera_permission');
-              }
-            }
-          };
-        }
+        setCameraStatus(proctoringManager.getCameraStatus());
 
         if (preCheckVideoRef.current) {
-          preCheckVideoRef.current.srcObject = stream;
+          proctoringManager.attachVideoElement(preCheckVideoRef.current);
         }
-      } catch (err) {
-        console.warn('Camera access denied or unavailable:', err);
+
+        // Start pre-check face monitoring
+        proctoringManager.startMonitoring({
+          onStatusChange: (status) => {
+            if (!isMounted) return;
+            setCameraStatus(status.cameraStatus);
+            setFaceStatus(status.faceStatus);
+            setWarningCount(status.warningCount);
+          },
+          onViolation: (evt) => {
+            if (!isMounted || stageRef.current !== 'active') return;
+            handleViolationEvent(evt);
+          },
+          onCameraInterrupted: (reason) => {
+            if (!isMounted) return;
+            setPreCheckError(reason);
+            setCameraStatus('disconnected');
+            if (stageRef.current === 'active') {
+              setActiveModal('camera_permission');
+            }
+          }
+        });
+
+      } catch (err: any) {
+        console.warn('Proctoring camera init error:', err);
         if (isMounted) {
-          setCameraPermission('denied');
-          setIsStreamActive(false);
-          setPreCheckError('Camera access is required to attend this assessment.');
+          setCameraStatus('denied');
+          setPreCheckError('Camera access is required for this proctored examination.');
         }
       }
     }
@@ -131,72 +154,124 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
     };
   }, []);
 
-  // Sync video elements when mediaStream updates
+  // Sync video elements when mediaStream updates or stage switches
   useEffect(() => {
-    if (mediaStream) {
+    if (mediaStream && proctoringManager) {
       if (preCheckVideoRef.current && stage === 'pre_check') {
-        preCheckVideoRef.current.srcObject = mediaStream;
+        proctoringManager.attachVideoElement(preCheckVideoRef.current);
       }
       if (videoRef.current && stage === 'active') {
-        videoRef.current.srcObject = mediaStream;
+        proctoringManager.attachVideoElement(videoRef.current);
       }
     }
   }, [mediaStream, stage]);
 
-  // Clean up media tracks on component unmount
+  // Clean up proctoring manager on unmount
   useEffect(() => {
     return () => {
-      if (mediaStream) {
-        mediaStream.getTracks().forEach(t => t.stop());
+      if (proctoringRef.current) {
+        proctoringRef.current.stopCamera();
       }
     };
-  }, [mediaStream]);
+  }, []);
 
-  // 2. Pre-Check Verification Loop (Runs until usable face detected)
+  // 2. Tab Visibility Change Listener during Active Assessment
   useEffect(() => {
-    if (stage !== 'pre_check' || !mediaStream || !isStreamActive) return;
+    if (stage !== 'active') return;
 
-    const intervalId = setInterval(() => {
-      const video = preCheckVideoRef.current;
-      if (!video || video.readyState !== 4) return;
+    const handleVisibilityChange = () => {
+      if (document.hidden && stageRef.current === 'active') {
+        proctoringManager.issueWarning(
+          'TAB_SWITCH',
+          'You left the examination tab. Please remain on the assessment page.',
+          suiteData.questions[currentIndexRef.current]?.question_number || currentIndexRef.current + 1
+        );
+      }
+    };
 
-      const canvas = canvasRef.current || document.createElement('canvas');
-      canvas.width = 160;
-      canvas.height = 120;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [stage, suiteData]);
 
-      ctx.drawImage(video, 0, 0, 160, 120);
-      const imageData = ctx.getImageData(0, 0, 160, 120);
-      const data = imageData.data;
+  // 3. Fullscreen Exit Listener during Active Assessment
+  useEffect(() => {
+    if (stage !== 'active') return;
 
-      let skinPixelCount = 0;
-      for (let i = 0; i < data.length; i += 4) {
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
-        const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
-        const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement && stageRef.current === 'active') {
+        proctoringManager.issueWarning(
+          'FULLSCREEN_EXIT',
+          'You exited fullscreen mode. Please return to fullscreen to continue your assessment.',
+          suiteData.questions[currentIndexRef.current]?.question_number || currentIndexRef.current + 1
+        );
+      }
+    };
 
-        if (r > 60 && g > 40 && b > 20 && cr > 133 && cr < 173 && cb > 77 && cb < 127) {
-          skinPixelCount++;
-        }
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, [stage, suiteData]);
+
+  // Centralized Violation Processor
+  const handleViolationEvent = (evt: ProctoringViolationEvent) => {
+    setViolationsLog(prev => [
+      ...prev,
+      {
+        type: evt.type,
+        timestamp: evt.timestamp,
+        question_number: evt.question_number,
+        warning_number: evt.warning_number
+      }
+    ]);
+
+    setWarningCount(evt.warning_number);
+
+    if (evt.warning_number >= 3) {
+      terminateAssessment('Examination terminated after 3 confirmed proctoring warnings.');
+    } else {
+      let title = `Warning ${evt.warning_number}/3`;
+      let formattedMsg = evt.message;
+
+      if (evt.warning_number === 2) {
+        formattedMsg = `Warning 2/3 — Continued violations will terminate your exam. (${evt.type.replace('_', ' ')})`;
       }
 
-      // Usable face check threshold
-      if (skinPixelCount >= 350) {
-        setIsFaceDetectedPreCheck(true);
-      } else {
-        setIsFaceDetectedPreCheck(false);
-      }
-    }, 400);
+      setCurrentWarningDetails({
+        title,
+        message: formattedMsg,
+        violationType: evt.type.replace('_', ' ')
+      });
+      setActiveModal('warning');
+    }
+  };
 
-    return () => clearInterval(intervalId);
-  }, [stage, mediaStream, isStreamActive]);
+  // Handler: Retry Camera Request if denied or interrupted
+  const handleRetryCamera = async () => {
+    setPreCheckError(null);
+    try {
+      const stream = await proctoringManager.requestCamera();
+      setMediaStream(stream);
+      setCameraStatus('active');
+      setActiveModal('none');
+      proctoringManager.resumeMonitoring();
+
+      if (preCheckVideoRef.current && stage === 'pre_check') {
+        proctoringManager.attachVideoElement(preCheckVideoRef.current);
+      } else if (videoRef.current && stage === 'active') {
+        proctoringManager.attachVideoElement(videoRef.current);
+      }
+    } catch (err) {
+      setCameraStatus('denied');
+      setPreCheckError('Camera access is required for this proctored examination.');
+    }
+  };
 
   // Handler: Start Active Assessment & Request Fullscreen
   const handleStartActiveAssessment = async () => {
-    if (cameraPermission !== 'granted' || !isStreamActive || !isFaceDetectedPreCheck) return;
+    if (cameraStatus !== 'active' || faceStatus !== 'single-face' || !mediaStream || !mediaStream.active) return;
 
     setStage('active');
 
@@ -209,194 +284,14 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
     }
   };
 
-  // 3. Fullscreen Exit Event Listener during Active Stage
-  useEffect(() => {
-    if (stage !== 'active') return;
-
-    const handleFullscreenChange = () => {
-      if (!document.fullscreenElement && stageRef.current === 'active') {
-        // Enforce cooldown so single exit doesn't double-trigger
-        if (Date.now() < cooldownUntilRef.current) return;
-
-        triggerViolation(
-          'Fullscreen Exit',
-          'You exited fullscreen mode. Please return to fullscreen to continue your assessment.'
-        );
-      }
-    };
-
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-    };
-  }, [stage]);
-
-  // 4. Real-Time Camera Monitoring (Active Stage) with Temporal Smoothing & Cooldown
-  useEffect(() => {
-    if (stage !== 'active' || cameraPermission !== 'granted' || !mediaStream) return;
-
-    let consecutiveAbsenceCount = 0;
-    let consecutiveOffCenterCount = 0;
-    let consecutiveMultipleFacesCount = 0;
-
-    const intervalId = setInterval(() => {
-      if (stageRef.current !== 'active') return;
-
-      const video = videoRef.current;
-      if (!video || video.readyState !== 4) return;
-
-      // Check stream video track status
-      const tracks = mediaStream.getVideoTracks();
-      if (!tracks.length || tracks[0].readyState !== 'live' || !tracks[0].enabled) {
-        setIsStreamActive(false);
-        setActiveModal('camera_permission');
-        return;
-      }
-
-      // If currently under violation cooldown period, skip processing frame
-      if (Date.now() < cooldownUntilRef.current) return;
-
-      const canvas = canvasRef.current || document.createElement('canvas');
-      canvas.width = 160;
-      canvas.height = 120;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      ctx.drawImage(video, 0, 0, 160, 120);
-      const imageData = ctx.getImageData(0, 0, 160, 120);
-      const data = imageData.data;
-
-      let skinPixelCount = 0;
-      let leftSkinPixels = 0;
-      let rightSkinPixels = 0;
-
-      for (let i = 0; i < data.length; i += 4) {
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
-
-        const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
-        const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
-
-        if (r > 60 && g > 40 && b > 20 && cr > 133 && cr < 173 && cb > 77 && cb < 127) {
-          skinPixelCount++;
-          const pixelIdx = i / 4;
-          const x = pixelIdx % 160;
-          if (x < 55) leftSkinPixels++;
-          else if (x > 105) rightSkinPixels++;
-        }
-      }
-
-      // Signal 1: Face Missing (Skin pixels < 300)
-      // Persistence requirement: 8 consecutive frames (~3.2 - ~4.0 seconds)
-      if (skinPixelCount < 300) {
-        consecutiveAbsenceCount++;
-        if (consecutiveAbsenceCount >= 8) {
-          consecutiveAbsenceCount = 0;
-          triggerViolation(
-            'Face Missing',
-            'Your face was not detected in frame. Please remain visible to the camera.'
-          );
-          return;
-        }
-      } else {
-        consecutiveAbsenceCount = 0;
-      }
-
-      // Signal 2: Sustained Gaze / Head Shift Away (Side ratio > 4.8 or < 0.20)
-      // Persistence requirement: 8 consecutive frames (~3.2 - ~4.0 seconds)
-      const sideRatio = (leftSkinPixels + 1) / (rightSkinPixels + 1);
-      if (sideRatio > 4.8 || sideRatio < 0.20) {
-        consecutiveOffCenterCount++;
-        if (consecutiveOffCenterCount >= 8) {
-          consecutiveOffCenterCount = 0;
-          triggerViolation(
-            'Sustained Gaze Shift',
-            'Please keep your attention on the assessment screen.'
-          );
-          return;
-        }
-      } else {
-        consecutiveOffCenterCount = 0;
-      }
-
-      // Signal 3: Multiple Clear Human Faces (Skin pixels > 7200 and dense in both left & right sections)
-      // Persistence requirement: 7 consecutive frames (~2.8 - ~3.5 seconds)
-      if (skinPixelCount > 7200 && leftSkinPixels > 2400 && rightSkinPixels > 2400) {
-        consecutiveMultipleFacesCount++;
-        if (consecutiveMultipleFacesCount >= 7) {
-          consecutiveMultipleFacesCount = 0;
-          triggerViolation(
-            'Multiple Faces Detected',
-            'More than one face was detected. Please ensure you are the only person visible to the camera.'
-          );
-          return;
-        }
-      } else {
-        consecutiveMultipleFacesCount = 0;
-      }
-    }, 400);
-
-    return () => clearInterval(intervalId);
-  }, [stage, cameraPermission, mediaStream, currentIndex]);
-
-  // Centralized Violation Trigger & Cooldown Manager
-  const triggerViolation = (type: string, message: string) => {
-    if (stageRef.current !== 'active') return;
-
-    // Start 12-second violation cooldown period to avoid double-counting continuous events
-    cooldownUntilRef.current = Date.now() + 12000;
-
-    const currentQNum = suiteData.questions[currentIndex]?.question_number || currentIndex + 1;
-    const nextWarning = warningCountRef.current + 1;
-
-    setViolationsLog(prev => [
-      ...prev,
-      {
-        type,
-        timestamp: new Date().toISOString(),
-        question_number: currentQNum,
-        warning_number: nextWarning
-      }
-    ]);
-
-    setWarningCount(nextWarning);
-
-    // Strict Escalation Policy: 3 warnings max
-    // Violation 1 -> Warning 1/3 Modal
-    // Violation 2 -> Warning 2/3 Modal
-    // Violation 3 -> Immediate Termination Modal & Exam Halt
-    if (nextWarning >= 3) {
-      terminateAssessment('Assessment terminated due to repeated monitoring violations.');
-    } else {
-      let title = `Warning ${nextWarning}/3`;
-      let formattedMsg = message;
-
-      if (nextWarning === 2) {
-        formattedMsg = `Warning 2/3 — Continued suspicious behavior may terminate your assessment. (${type})`;
-      } else if (!formattedMsg.startsWith('Warning')) {
-        formattedMsg = `Warning ${nextWarning}/3 — ${message}`;
-      }
-
-      setCurrentWarningDetails({
-        title,
-        message: formattedMsg,
-        violationType: type
-      });
-      setActiveModal('warning');
-    }
-  };
-
   // Terminate Assessment Execution
   const terminateAssessment = async (reason: string) => {
     setStage('terminated');
     setActiveModal('terminated');
 
-    // Stop webcam tracks immediately
-    if (mediaStream) {
-      mediaStream.getTracks().forEach(t => t.stop());
-      setMediaStream(null);
-    }
+    // Stop camera monitoring & tracks
+    proctoringManager.stopCamera();
+    setMediaStream(null);
 
     // Exit browser fullscreen
     try {
@@ -452,6 +347,9 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
     });
 
     setCompletedRecord(record);
+
+    // Save terminated session persistence key so refresh cannot bypass termination
+    sessionStorage.setItem(`learnivo_terminated_${subject_code}`, JSON.stringify(record));
   };
 
   const requestReentryFullscreen = async () => {
@@ -562,18 +460,14 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
     setIsSubmitting(false);
   };
 
-  // Hidden Canvas Element for Camera Pixel Sampling
-  const hiddenCanvas = <canvas ref={canvasRef} className="hidden" />;
-
   // --------------------------------------------------------------------------
   // STAGE 0: PRE-CHECK STAGE (CAMERA & FACE MANDATORY BEFORE STARTING TEST)
   // --------------------------------------------------------------------------
   if (stage === 'pre_check') {
-    const isReadyToStart = cameraPermission === 'granted' && isStreamActive && isFaceDetectedPreCheck;
+    const isReadyToStart = cameraStatus === 'active' && faceStatus === 'single-face' && Boolean(mediaStream && mediaStream.active);
 
     return (
       <div className="fixed inset-0 z-50 bg-[#08090D] text-[#F7F5FA] flex items-center justify-center p-6 overflow-y-auto min-h-screen">
-        {hiddenCanvas}
         <div className="surface-card p-8 border border-white/10 rounded-2xl bg-[#0D0B14] max-w-xl w-full space-y-6 shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-[#C7FF4A]/5 rounded-full blur-3xl pointer-events-none" />
 
@@ -597,7 +491,7 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
 
           {/* Video Preview & Status Overlay */}
           <div className="relative w-full h-56 rounded-xl border border-white/15 bg-black/90 overflow-hidden flex items-center justify-center shadow-inner">
-            {cameraPermission === 'granted' && isStreamActive ? (
+            {cameraStatus === 'active' && mediaStream && mediaStream.active ? (
               <video
                 ref={preCheckVideoRef}
                 autoPlay
@@ -609,13 +503,13 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
               <div className="flex flex-col items-center justify-center text-center p-6 space-y-3">
                 <CameraOff className="w-10 h-10 text-rose-400 animate-pulse" />
                 <p className="text-xs font-semibold text-rose-300">
-                  Camera access is required to attend this assessment.
+                  Camera access is required for this proctored examination.
                 </p>
               </div>
             )}
 
             {/* Live Camera Badge */}
-            {cameraPermission === 'granted' && isStreamActive && (
+            {cameraStatus === 'active' && mediaStream && mediaStream.active && (
               <div className="absolute top-3 left-3 bg-black/75 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-mono text-emerald-400 flex items-center gap-1.5 border border-emerald-500/30">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                 WEBCAM READY
@@ -635,9 +529,9 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
                   <Camera className="w-4 h-4 text-[#C7FF4A]" />
                   Webcam Permission
                 </span>
-                {cameraPermission === 'granted' ? (
+                {cameraStatus === 'active' ? (
                   <span className="flex items-center gap-1 font-bold text-emerald-400">
-                    <Check className="w-3.5 h-3.5" /> Granted
+                    <Check className="w-3.5 h-3.5" /> Granted & Active
                   </span>
                 ) : (
                   <span className="font-bold text-rose-400">Denied / Pending</span>
@@ -649,9 +543,9 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
                   <Sparkles className="w-4 h-4 text-[#C7FF4A]" />
                   Video Stream Quality
                 </span>
-                {isStreamActive ? (
+                {cameraStatus === 'active' && mediaStream && mediaStream.active ? (
                   <span className="flex items-center gap-1 font-bold text-emerald-400">
-                    <Check className="w-3.5 h-3.5" /> Active
+                    <Check className="w-3.5 h-3.5" /> Active Stream
                   </span>
                 ) : (
                   <span className="font-bold text-rose-400">Unavailable</span>
@@ -663,9 +557,13 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
                   <Users className="w-4 h-4 text-[#C7FF4A]" />
                   Face Detection
                 </span>
-                {isFaceDetectedPreCheck ? (
+                {faceStatus === 'single-face' ? (
                   <span className="flex items-center gap-1 font-bold text-emerald-400">
-                    <Check className="w-3.5 h-3.5" /> Face Verified
+                    <Check className="w-3.5 h-3.5" /> Single Face Verified
+                  </span>
+                ) : faceStatus === 'multiple-faces' ? (
+                  <span className="font-bold text-rose-400 flex items-center gap-1">
+                    <Users className="w-3.5 h-3.5" /> Multiple Faces Detected
                   </span>
                 ) : (
                   <span className="font-bold text-amber-400 flex items-center gap-1">
@@ -678,9 +576,20 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
 
           {/* Error Message callout if denied */}
           {preCheckError && (
-            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2.5">
-              <AlertCircle className="w-4 h-4 text-rose-400 flex-shrink-0" />
-              <span>{preCheckError}</span>
+            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2.5">
+                <AlertCircle className="w-4 h-4 text-rose-400 flex-shrink-0" />
+                <span>{preCheckError}</span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRetryCamera}
+                className="text-xs text-rose-300 border-rose-500/30 hover:bg-rose-500/20"
+              >
+                <RefreshCw className="w-3 h-3 mr-1" />
+                Try Again
+              </Button>
             </div>
           )}
 
@@ -698,7 +607,7 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
 
             {!isReadyToStart && (
               <p className="text-[11px] text-center text-[#A6A1B2]">
-                Please ensure your face is clearly visible in the camera preview to activate the assessment.
+                Please ensure your camera is enabled and your face is clearly visible in the preview to activate the assessment.
               </p>
             )}
           </div>
@@ -713,7 +622,6 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
   if ((stage === 'submitted' || isSubmitted) && completedRecord) {
     return (
       <div className="space-y-8 max-w-4xl mx-auto py-8">
-        {hiddenCanvas}
         {/* Header / Summary Card */}
         <div className="surface-card p-8 border border-white/10 rounded-2xl bg-[#0D0B14] shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-[#C7FF4A]/5 rounded-full blur-3xl pointer-events-none" />
@@ -835,10 +743,8 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-[#08090D] text-[#F7F5FA] flex flex-col overflow-y-auto min-h-screen">
-      {hiddenCanvas}
-
       {/* Floating Webcam Preview (Top-Right, Away from question content) */}
-      {stage === 'active' && cameraPermission === 'granted' && (
+      {stage === 'active' && cameraStatus === 'active' && (
         <div className="fixed top-16 right-6 w-36 h-28 rounded-xl border border-white/20 bg-black/90 shadow-2xl z-40 overflow-hidden flex flex-col group transition-all">
           <video
             ref={videoRef}
@@ -865,18 +771,18 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
               <CameraOff className="w-8 h-8" />
             </div>
             <div className="space-y-2">
-              <h3 className="text-xl font-bold text-white">Camera Access Required</h3>
+              <h3 className="text-xl font-bold text-white">Camera Connection Lost</h3>
               <p className="text-xs text-[#A6A1B2] leading-relaxed">
-                Camera access is required to attend this assessment. Please allow camera access to continue.
+                Camera access is required for this proctored examination. Your examination is paused until camera access is restored.
               </p>
             </div>
             <Button
               variant="primary"
-              onClick={() => window.location.reload()}
+              onClick={handleRetryCamera}
               className="bg-[#C7FF4A] text-black font-bold hover:bg-[#b8f533] w-full"
             >
-              <Camera className="w-4 h-4 mr-2" />
-              Grant Camera Access & Retry
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Reconnect Camera & Resume
             </Button>
           </div>
         </div>
