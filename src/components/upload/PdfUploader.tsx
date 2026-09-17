@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Upload, FileText, CheckCircle2, AlertCircle, X, RefreshCw, Loader2, MessageSquareCode, BrainCircuit } from 'lucide-react';
 import { pdfService } from '../../services/api/pdfService';
+import { youtubeScraperService } from '../../services/api/youtubeScraperService';
 import { storageService } from '../../services/storage/storageService';
 import { LearningMaterial } from '../../types';
 import { Button } from '../ui/Button';
@@ -54,6 +55,23 @@ export const PdfUploader: React.FC<PdfUploaderProps> = ({ onSuccess }) => {
 
       const result = await pdfService.uploadPdf(file);
       
+      // Wait briefly for SNS Agent Workbench to complete Supabase database insertion
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      // Fetch the newly stored syllabus & 5 topics from Supabase courses table
+      const latestData = await youtubeScraperService.getLatestSyllabusAndMaterials(true, 3);
+
+      if (latestData && latestData.selected5Topics.length > 0) {
+        result.topics = latestData.selected5Topics.map((name, i) => ({
+          id: `top_${i}_${Date.now()}`,
+          name,
+          difficulty: 'Medium'
+        }));
+        if (latestData.subjectTitle) {
+          result.title = latestData.subjectTitle;
+        }
+      }
+
       // Save material to persistent local storage
       storageService.saveMaterial(result);
       

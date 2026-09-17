@@ -18,75 +18,82 @@ export interface LatestSyllabusData {
 
 export const youtubeScraperService = {
   /**
-   * Fetch the MOST RECENTLY uploaded syllabus data from Supabase
-   * sorted by created_at DESC LIMIT 1
+   * Fetch the MOST RECENTLY updated/created syllabus data from Supabase
+   * sorted by created_at DESC LIMIT 1.
+   * Supports retry delay to allow backend webhooks to finalize Supabase writes.
    */
-  getLatestSyllabusAndMaterials: async (forceRefresh: boolean = false): Promise<LatestSyllabusData | null> => {
-    try {
-      // Step 1: Query Supabase courses table for the newest syllabus record
-      const { data: latestCourses, error: courseErr } = await supabase
-        .from('courses')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(1);
+  getLatestSyllabusAndMaterials: async (forceRefresh: boolean = false, maxRetries: number = 3): Promise<LatestSyllabusData | null> => {
+    let latestCourse: any = null;
 
-      if (courseErr) {
-        console.warn('Supabase courses fetch warning:', courseErr);
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const { data: latestCourses, error: courseErr } = await supabase
+          .from('courses')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (courseErr) {
+          console.warn(`Supabase courses query attempt ${attempt + 1} warning:`, courseErr);
+        }
+
+        if (latestCourses && latestCourses.length > 0) {
+          latestCourse = latestCourses[0];
+          // If we found a course row with valid subject content, break retry loop
+          if (latestCourse.subject && latestCourse.subject.trim().length > 0) {
+            break;
+          }
+        }
+      } catch (err) {
+        console.warn(`Retry attempt ${attempt + 1} error:`, err);
       }
 
-      const latestCourse = latestCourses && latestCourses.length > 0 ? latestCourses[0] : null;
-
-      if (!latestCourse) {
-        return null;
+      // Wait 1.2s before next retry if needed
+      if (attempt < maxRetries - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1200));
       }
+    }
 
-      const syllabusId = latestCourse.course_id || latestCourse.id || 'sys_' + Date.now();
-      const rawText = latestCourse.subject || '';
+    if (!latestCourse) {
+      console.warn('No syllabus record found in Supabase courses table.');
+      return null;
+    }
+
+    const syllabusId = latestCourse.course_id || latestCourse.id || 'sys_' + Date.now();
+    const rawText = latestCourse.subject || '';
+    
+    // Step 2: Extract & clean topics from the latest syllabus content
+    const extractedTopics = parseAndCleanTopics(rawText);
+
+    // Select ONLY 5 topics (maximum 5)
+    const selected5Topics = extractedTopics.slice(0, 5);
+
+    // Check if YouTube materials are already stored in course_data for this exact syllabus
+    let storedMaterials: YouTubeMaterialRecord[] = [];
+    if (!forceRefresh && latestCourse.course_data && Array.isArray(latestCourse.course_data.youtube_materials)) {
+      storedMaterials = latestCourse.course_data.youtube_materials;
+    }
+
+    // If YouTube materials already exist for these topics and not forcing refresh, return them
+    if (storedMaterials.length > 0 && storedMaterials.length >= selected5Topics.length) {
+      return {
+        syllabusId,
+        documentId: latestCourse.document_id,
+        subjectTitle: extractSubjectName(rawText),
+        rawText,
+        createdAt: latestCourse.created_at,
+        topics: extractedTopics,
+        selected5Topics,
+        youtubeMaterials: storedMaterials
+      };
+    }
+
+    // Step 3: Fetch YouTube videos via Apify for ONLY the 5 selected topics
+    if (selected5Topics.length > 0) {
+      const freshMaterials = await youtubeScraperService.runApifyScraper(selected5Topics, syllabusId);
       
-      // Step 2: Extract & clean topics from the latest syllabus content
-      const extractedTopics = parseAndCleanTopics(rawText);
-
-      // Select ONLY 5 topics (maximum 5)
-      const selected5Topics = extractedTopics.slice(0, 5);
-
-      // Check if YouTube materials are already stored in course_data for this exact syllabus
-      let storedMaterials: YouTubeMaterialRecord[] = [];
-      if (!forceRefresh && latestCourse.course_data && Array.isArray(latestCourse.course_data.youtube_materials)) {
-        storedMaterials = latestCourse.course_data.youtube_materials;
-      }
-
-      // If YouTube materials already exist for these topics and not forcing refresh, return them directly
-      if (storedMaterials.length > 0) {
-        return {
-          syllabusId,
-          documentId: latestCourse.document_id,
-          subjectTitle: extractSubjectName(rawText),
-          rawText,
-          createdAt: latestCourse.created_at,
-          topics: extractedTopics,
-          selected5Topics,
-          youtubeMaterials: storedMaterials
-        };
-      }
-
-      // Step 3: Fetch YouTube videos via Apify for ONLY the 5 selected topics
-      if (selected5Topics.length > 0) {
-        const freshMaterials = await youtubeScraperService.runApifyScraper(selected5Topics, syllabusId);
-        
-        // Save the fresh materials into Supabase for this syllabus
-        await youtubeScraperService.saveMaterialsToSupabase(syllabusId, freshMaterials);
-
-        return {
-          syllabusId,
-          documentId: latestCourse.document_id,
-          subjectTitle: extractSubjectName(rawText),
-          rawText,
-          createdAt: latestCourse.created_at,
-          topics: extractedTopics,
-          selected5Topics,
-          youtubeMaterials: freshMaterials
-        };
-      }
+      // Save the fresh materials into Supabase for this syllabus row
+      await youtubeScraperService.saveMaterialsToSupabase(syllabusId, freshMaterials);
 
       return {
         syllabusId,
@@ -96,18 +103,25 @@ export const youtubeScraperService = {
         createdAt: latestCourse.created_at,
         topics: extractedTopics,
         selected5Topics,
-        youtubeMaterials: []
+        youtubeMaterials: freshMaterials
       };
-
-    } catch (error) {
-      console.error('Error fetching latest syllabus from Supabase:', error);
-      return null;
     }
+
+    return {
+      syllabusId,
+      documentId: latestCourse.document_id,
+      subjectTitle: extractSubjectName(rawText),
+      rawText,
+      createdAt: latestCourse.created_at,
+      topics: extractedTopics,
+      selected5Topics,
+      youtubeMaterials: []
+    };
   },
 
   /**
    * Calls Apify YouTube Scraper (streamers/youtube-scraper) with maxResults = 1
-   * for the 5 selected topics with course tutorial focus (max 1 hr format).
+   * for the 5 selected topics.
    */
   runApifyScraper: async (topics: string[], syllabusId: string): Promise<YouTubeMaterialRecord[]> => {
     if (!topics || topics.length === 0) return [];
@@ -186,7 +200,7 @@ export const youtubeScraperService = {
         'Prefer': 'return=minimal'
       };
 
-      // 1. Update courses table course_data JSONB field
+      // Update courses table course_data JSONB field
       const saveRes = await fetch(`${SUPABASE_URL}/rest/v1/courses?course_id=eq.${encodeURIComponent(syllabusId)}`, {
         method: 'PATCH',
         headers,
@@ -202,12 +216,12 @@ export const youtubeScraperService = {
         console.warn('Supabase course_data update status:', saveRes.status);
       }
 
-      // 2. Also attempt insert into youtube_materials table if created
+      // Also attempt insert into youtube_materials table if created
       await fetch(`${SUPABASE_URL}/rest/v1/youtube_materials`, {
         method: 'POST',
         headers,
         body: JSON.stringify(records)
-      }).catch(() => {/* ignore table absent */});
+      }).catch(() => {/* ignore if table absent */});
 
     } catch (err) {
       console.warn('Save to Supabase error:', err);
@@ -219,7 +233,7 @@ export const youtubeScraperService = {
  * Utility function to clean and extract topics from syllabus text stored in Supabase
  */
 function parseAndCleanTopics(rawText: string): string[] {
-  if (!rawText) return [];
+  if (!rawText || rawText.trim().length === 0) return [];
 
   const lines = rawText.split('\n');
   const topics: string[] = [];
@@ -228,27 +242,43 @@ function parseAndCleanTopics(rawText: string): string[] {
     const trimmed = line.trim();
     if (!trimmed) continue;
 
-    // Detect topics starting with numbers e.g. "1. Abstract Data Types (ADTs)"
-    const numMatch = trimmed.match(/^\d+\.\s*(.+)$/);
+    // 1. Numbered topics e.g. "1. Abstract Data Types (ADTs)" or "1) List ADT"
+    const numMatch = trimmed.match(/^(?:\d+[\.\)]|\-|\*|\•)\s*(.+)$/);
     if (numMatch) {
       const topicName = numMatch[1].trim();
-      if (topicName && !topics.includes(topicName)) {
+      if (topicName.length > 2 && topicName.length < 80 && !topics.includes(topicName)) {
         topics.push(topicName);
       }
       continue;
     }
 
-    // Detect unit titles or key headings
-    if (trimmed.length > 3 && trimmed.length < 60 && !trimmed.toLowerCase().includes('subject code')) {
+    // 2. Unit titles or headings e.g. "UNIT I: LISTS"
+    const unitMatch = trimmed.match(/^UNIT\s+[I|V|X\d]+[\:\-\s]*(.+)$/i);
+    if (unitMatch) {
+      const unitName = unitMatch[1].trim();
+      if (unitName && !topics.includes(unitName)) {
+        topics.push(unitName);
+      }
+      continue;
+    }
+
+    // 3. Standalone heading lines
+    if (trimmed.length > 3 && trimmed.length < 50 && !trimmed.toLowerCase().includes('subject code') && !trimmed.toLowerCase().includes('subject name')) {
       if (!topics.includes(trimmed)) {
         topics.push(trimmed);
       }
     }
   }
 
-  // Remove duplicates, empty strings, nulls, and trim
+  // Fallback: split by comma if single paragraph with commas
+  if (topics.length === 0 && rawText.includes(',')) {
+    const parts = rawText.split(',').map(p => p.trim()).filter(p => p.length > 3 && p.length < 60);
+    topics.push(...parts);
+  }
+
+  // Clean and remove duplicates
   const cleaned = Array.from(new Set(topics))
-    .map(t => t.trim())
+    .map(t => t.replace(/^(?:topic|unit|chapter)\s*\d*[\:\-\s]*/i, '').trim())
     .filter(t => t.length > 2);
 
   return cleaned.length > 0 ? cleaned : [
