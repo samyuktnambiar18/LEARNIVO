@@ -6,6 +6,32 @@ const ADAPTIVE_LEARNING_WEBHOOK_URL =
   import.meta.env.VITE_ADAPTIVE_LEARNING_WEBHOOK_URL ||
   'https://api.agents.snsihub.ai/webhook/adaptive-learning';
 
+export interface AssessmentAnswerPayload {
+  question_id: string;
+  selected_option: number;
+}
+
+export interface AssessmentSubmissionPayload {
+  action: 'submit_assessment';
+  student_id: string;
+  document_id: string;
+  answers: AssessmentAnswerPayload[];
+}
+
+export interface AssessmentEvaluationResult {
+  score: number;
+  total_marks: number;
+  obtained_marks: number;
+  correct_answers: number;
+  incorrect_answers: number;
+  weak_topics: string[];
+  strong_topics: string[];
+  misconceptions: string[];
+  knowledge_gaps: string[];
+  level: string;
+  raw?: any;
+}
+
 export const adaptiveLearningService = {
   /**
    * Evaluates student activity and posts practice attempts to the Adaptive Learning server webhook
@@ -75,8 +101,118 @@ export const adaptiveLearningService = {
       console.warn('Adaptive learning webhook connection offline, using fallback model:', error);
       return buildLocalEvaluation(attempts);
     }
+  },
+
+  /**
+   * Submits all 10 assessment answers in a single request to the backend webhook
+   */
+  submitAssessment: async (
+    studentId: string,
+    documentId: string,
+    answers: AssessmentAnswerPayload[]
+  ): Promise<AssessmentEvaluationResult> => {
+    const payload: AssessmentSubmissionPayload = {
+      action: 'submit_assessment',
+      student_id: studentId || 'guest',
+      document_id: documentId || 'doc_diagnostic',
+      answers
+    };
+
+    console.log('SUBMIT ASSESSMENT PAYLOAD:', JSON.stringify(payload, null, 2));
+
+    try {
+      const response = await fetch(ADAPTIVE_LEARNING_WEBHOOK_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const contentType = response.headers.get('content-type');
+      let rawData: any;
+
+      if (contentType && contentType.includes('application/json')) {
+        rawData = await response.json();
+      } else {
+        const text = await response.text();
+        try {
+          const cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+          rawData = JSON.parse(cleaned);
+        } catch {
+          rawData = { summary: text };
+        }
+      }
+
+      console.log('SUBMIT ASSESSMENT BACKEND RESPONSE:', rawData);
+      return parseAssessmentEvaluationResponse(rawData, answers.length);
+    } catch (error) {
+      console.error('Error submitting assessment to webhook:', error);
+      throw error;
+    }
   }
 };
+
+export function parseAssessmentEvaluationResponse(raw: any, totalQuestions: number = 10): AssessmentEvaluationResult {
+  if (!raw || typeof raw !== 'object') {
+    return {
+      score: 0,
+      total_marks: 100,
+      obtained_marks: 0,
+      correct_answers: 0,
+      incorrect_answers: totalQuestions,
+      weak_topics: [],
+      strong_topics: [],
+      misconceptions: [],
+      knowledge_gaps: [],
+      level: 'Beginner',
+      raw
+    };
+  }
+
+  const source = raw.data || raw.result || raw.output || raw.evaluation || raw;
+
+  const total_marks = Number(source.total_marks ?? source.totalMarks ?? 100);
+  const obtained_marks = Number(source.obtained_marks ?? source.obtainedMarks ?? source.score ?? 0);
+  const score = Number(source.score ?? source.scorePercentage ?? (total_marks > 0 ? Math.round((obtained_marks / total_marks) * 100) : 0));
+  const correct_answers = Number(source.correct_answers ?? source.correctCount ?? Math.round((score / 100) * totalQuestions));
+  const incorrect_answers = Number(source.incorrect_answers ?? source.incorrectCount ?? Math.max(0, totalQuestions - correct_answers));
+
+  const weak_topics = Array.isArray(source.weak_topics)
+    ? source.weak_topics
+    : Array.isArray(source.weaknesses)
+    ? source.weaknesses
+    : [];
+
+  const strong_topics = Array.isArray(source.strong_topics)
+    ? source.strong_topics
+    : Array.isArray(source.strengths)
+    ? source.strengths
+    : [];
+
+  const misconceptions = Array.isArray(source.misconceptions) ? source.misconceptions : [];
+  const knowledge_gaps = Array.isArray(source.knowledge_gaps)
+    ? source.knowledge_gaps
+    : Array.isArray(source.recommendations)
+    ? source.recommendations
+    : [];
+
+  const level = String(source.level || source.suggestedDifficulty || 'Intermediate');
+
+  return {
+    score,
+    total_marks,
+    obtained_marks,
+    correct_answers,
+    incorrect_answers,
+    weak_topics,
+    strong_topics,
+    misconceptions,
+    knowledge_gaps,
+    level,
+    raw: source
+  };
+}
 
 function buildLocalEvaluation(attempts: PracticeAttempt[]): AdaptiveLearningResult {
   const topicStats: Record<string, { correct: number; total: number }> = {};

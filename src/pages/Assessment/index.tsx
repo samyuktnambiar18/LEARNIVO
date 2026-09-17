@@ -53,6 +53,104 @@ export const AssessmentPage: React.FC = () => {
         ],
         correctAnswer: '3 e^(3x)',
         explanation: 'Applying the chain rule: d/dx(e^u) = e^u * du/dx, where u = 3x.'
+      },
+      {
+        id: 'eval_q4',
+        topic: 'Probability & Statistics',
+        difficulty: 'Easy',
+        questionText: 'What is the expected value of rolling a single fair six-sided die?',
+        options: [
+          '3.5',
+          '3.0',
+          '4.0',
+          '2.5'
+        ],
+        correctAnswer: '3.5',
+        explanation: 'The expected value is (1 + 2 + 3 + 4 + 5 + 6) / 6 = 21 / 6 = 3.5.'
+      },
+      {
+        id: 'eval_q5',
+        topic: 'Data Structures',
+        difficulty: 'Medium',
+        questionText: 'What is the average-case time complexity for searching an element in a Hash Table?',
+        options: [
+          'O(1)',
+          'O(n)',
+          'O(log n)',
+          'O(n log n)'
+        ],
+        correctAnswer: 'O(1)',
+        explanation: 'With a uniform hash function, average hash table lookups take constant time O(1).'
+      },
+      {
+        id: 'eval_q6',
+        topic: 'Operating Systems',
+        difficulty: 'Hard',
+        questionText: 'Which memory management technique allows the execution of processes that are not completely in physical memory?',
+        options: [
+          'Virtual Memory',
+          'Dynamic Linking',
+          'Static Segmentation',
+          'Paging without Swapping'
+        ],
+        correctAnswer: 'Virtual Memory',
+        explanation: 'Virtual memory decouples logical user memory from physical memory via demand paging.'
+      },
+      {
+        id: 'eval_q7',
+        topic: 'Machine Learning',
+        difficulty: 'Medium',
+        questionText: 'Which regularization technique randomly drops neurons during training to prevent overfitting?',
+        options: [
+          'Dropout',
+          'Batch Normalization',
+          'Gradient Clipping',
+          'L1 Regularization'
+        ],
+        correctAnswer: 'Dropout',
+        explanation: 'Dropout randomly deactivates sub-networks during training to improve generalization.'
+      },
+      {
+        id: 'eval_q8',
+        topic: 'Computer Networks',
+        difficulty: 'Easy',
+        questionText: 'Which transport layer protocol provides reliable, connection-oriented, and byte-stream service?',
+        options: [
+          'TCP',
+          'UDP',
+          'IP',
+          'ICMP'
+        ],
+        correctAnswer: 'TCP',
+        explanation: 'Transmission Control Protocol (TCP) ensures reliable sequence delivery via handshake.'
+      },
+      {
+        id: 'eval_q9',
+        topic: 'Database Systems',
+        difficulty: 'Medium',
+        questionText: 'In DBMS ACID properties, what does Atomicity guarantee?',
+        options: [
+          'All operations in a transaction execute completely or none do',
+          'Data remains consistent across system crashes',
+          'Transactions run in complete isolation',
+          'Updates are permanently saved to persistent storage'
+        ],
+        correctAnswer: 'All operations in a transaction execute completely or none do',
+        explanation: 'Atomicity treats a transaction as an indivisible unit of work (all-or-nothing).'
+      },
+      {
+        id: 'eval_q10',
+        topic: 'Discrete Mathematics',
+        difficulty: 'Hard',
+        questionText: 'In Proof by Mathematical Induction, what step assumes the statement P(k) is true for an arbitrary integer k?',
+        options: [
+          'Inductive Hypothesis',
+          'Base Case',
+          'Proof by Contradiction',
+          'Contrapositive Assumption'
+        ],
+        correctAnswer: 'Inductive Hypothesis',
+        explanation: 'The inductive hypothesis assumes P(k) holds to prove P(k+1).'
       }
     ];
 
@@ -62,7 +160,7 @@ export const AssessmentPage: React.FC = () => {
       materials.forEach((mat, mIdx) => {
         mat.topics.forEach((t, tIdx) => {
           custom.push({
-            id: `eval_${mIdx}_${tIdx}`,
+            id: `eval_${mat.id || mIdx}_${tIdx}`,
             materialId: mat.id,
             topic: t.name,
             difficulty: 'Hard',
@@ -78,7 +176,17 @@ export const AssessmentPage: React.FC = () => {
           });
         });
       });
-      setQuestions(custom.length > 0 ? custom : defaultAssessmentQuestions);
+
+      if (custom.length >= 10) {
+        setQuestions(custom.slice(0, 10));
+      } else {
+        // Fill remaining up to 10 questions using defaults
+        const filled = [...custom];
+        for (let i = custom.length; i < 10; i++) {
+          filled.push(defaultAssessmentQuestions[i]);
+        }
+        setQuestions(filled);
+      }
     } else {
       setQuestions(defaultAssessmentQuestions);
     }
