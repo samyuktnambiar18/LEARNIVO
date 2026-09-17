@@ -106,9 +106,15 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
       if (window.google?.accounts?.id) {
         window.google.accounts.id.prompt((notification: any) => {
           if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-            // If One Tap was dismissed or cannot display (e.g. origin restriction), fallback to Supabase OAuth
+            const reason = notification.getNotDisplayedReason() || notification.getSkippedReason() || 'unknown';
+            console.warn('Google One Tap notification skipped/not displayed:', reason);
+
+            // Fallback to Supabase OAuth
             authService.googleLogin().catch((err: any) => {
-              if (onError) onError(err?.message || 'Google sign-in popup could not be displayed.');
+              const msg = err?.message?.includes('invalid_client') || err?.message?.includes('401')
+                ? 'Google OAuth 401 Error: Please add ' + window.location.origin + ' to Authorized JavaScript origins & Redirect URIs in your Google Cloud Console.'
+                : err?.message || 'Google sign-in popup could not be displayed.';
+              if (onError) onError(msg);
               setIsLoading(false);
             });
           }
@@ -117,7 +123,10 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
         await authService.googleLogin();
       }
     } catch (err: any) {
-      if (onError) onError(err?.message || 'Google sign-in encountered an issue.');
+      const msg = err?.message?.includes('invalid_client')
+        ? 'Google OAuth Error 401: Please add ' + window.location.origin + ' to Authorized JavaScript origins in Google Cloud Console.'
+        : err?.message || 'Google sign-in encountered an issue.';
+      if (onError) onError(msg);
       setIsLoading(false);
     }
   };
