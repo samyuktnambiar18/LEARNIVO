@@ -117,6 +117,23 @@ export interface VideoRecommendation {
   topic: string;
 }
 
+export interface YouTubeMaterialRecord {
+  id?: string;
+  topic: string;
+  video_title: string;
+  channel_name: string;
+  video_url: string;
+  thumbnail_url?: string;
+  view_count?: number;
+  likes?: number;
+  published_date?: string;
+  duration?: string;
+  video_type?: string;
+  comments_count?: number;
+  created_at?: string;
+  syllabus_id?: string;
+}
+
 export interface AdaptiveLearningResult {
   evaluationSummary: string;
   strengths: string[];

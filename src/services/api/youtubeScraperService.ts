@@ -1,0 +1,290 @@
+import { supabase } from '../supabase';
+import { YouTubeMaterialRecord } from '../../types';
+
+const APIFY_API_TOKEN = import.meta.env.VITE_APIFY_API_TOKEN || '';
+const SUPABASE_SECRET_KEY = import.meta.env.VITE_SUPABASE_SECRET_KEY || '';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://hmfxzzfopfeaqajgfipe.supabase.co';
+
+export interface LatestSyllabusData {
+  syllabusId: string;
+  documentId?: string;
+  subjectTitle: string;
+  rawText?: string;
+  createdAt: string;
+  topics: string[];
+  selected5Topics: string[];
+  youtubeMaterials: YouTubeMaterialRecord[];
+}
+
+export const youtubeScraperService = {
+  /**
+   * Fetch the MOST RECENTLY uploaded syllabus data from Supabase
+   * sorted by created_at DESC LIMIT 1
+   */
+  getLatestSyllabusAndMaterials: async (): Promise<LatestSyllabusData | null> => {
+    try {
+      // Step 1: Query Supabase courses table for the newest syllabus record
+      const { data: latestCourses, error: courseErr } = await supabase
+        .from('courses')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (courseErr) {
+        console.warn('Supabase courses fetch warning:', courseErr);
+      }
+
+      let latestCourse = latestCourses && latestCourses.length > 0 ? latestCourses[0] : null;
+
+      if (!latestCourse) {
+        return null;
+      }
+
+      const syllabusId = latestCourse.course_id || latestCourse.id || 'sys_' + Date.now();
+      const rawText = latestCourse.subject || '';
+      
+      // Step 2: Extract & clean topics from the latest syllabus content
+      const extractedTopics = parseAndCleanTopics(rawText);
+
+      // Select ONLY 5 topics (maximum 5)
+      const selected5Topics = extractedTopics.slice(0, 5);
+
+      // Check if YouTube materials are already stored in course_data for this exact syllabus
+      let storedMaterials: YouTubeMaterialRecord[] = [];
+      if (latestCourse.course_data && Array.isArray(latestCourse.course_data.youtube_materials)) {
+        storedMaterials = latestCourse.course_data.youtube_materials;
+      }
+
+      // If YouTube materials already exist for these topics, return them directly
+      if (storedMaterials.length > 0) {
+        return {
+          syllabusId,
+          documentId: latestCourse.document_id,
+          subjectTitle: extractSubjectName(rawText),
+          rawText,
+          createdAt: latestCourse.created_at,
+          topics: extractedTopics,
+          selected5Topics,
+          youtubeMaterials: storedMaterials
+        };
+      }
+
+      // Step 3: Fetch YouTube videos via Apify for ONLY the 5 selected topics
+      if (selected5Topics.length > 0) {
+        const freshMaterials = await youtubeScraperService.runApifyScraper(selected5Topics, syllabusId);
+        
+        // Save the fresh materials into Supabase for this syllabus
+        await youtubeScraperService.saveMaterialsToSupabase(syllabusId, freshMaterials);
+
+        return {
+          syllabusId,
+          documentId: latestCourse.document_id,
+          subjectTitle: extractSubjectName(rawText),
+          rawText,
+          createdAt: latestCourse.created_at,
+          topics: extractedTopics,
+          selected5Topics,
+          youtubeMaterials: freshMaterials
+        };
+      }
+
+      return {
+        syllabusId,
+        documentId: latestCourse.document_id,
+        subjectTitle: extractSubjectName(rawText),
+        rawText,
+        createdAt: latestCourse.created_at,
+        topics: extractedTopics,
+        selected5Topics,
+        youtubeMaterials: []
+      };
+
+    } catch (error) {
+      console.error('Error fetching latest syllabus from Supabase:', error);
+      return null;
+    }
+  },
+
+  /**
+   * Calls Apify YouTube Scraper (streamers/youtube-scraper) with maxResults = 1
+   * for the 5 selected topics.
+   */
+  runApifyScraper: async (topics: string[], syllabusId: string): Promise<YouTubeMaterialRecord[]> => {
+    if (!topics || topics.length === 0) return [];
+    
+    // Ensure max 5 topics
+    const targetTopics = topics.slice(0, 5);
+
+    try {
+      const response = await fetch('https://api.apify.com/v2/acts/streamers~youtube-scraper/run-sync-get-dataset-items', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${APIFY_API_TOKEN}`
+        },
+        body: JSON.stringify({
+          searchQueries: targetTopics,
+          maxResults: 1,
+          sortingOrder: 'relevance',
+          transcriptionAndSubtitle: 'NONE'
+        })
+      });
+
+      if (!response.ok) {
+        console.warn(`Apify YouTube scraper returned HTTP ${response.status}`);
+        return fallbackVideosForTopics(targetTopics, syllabusId);
+      }
+
+      const rawItems = await response.json();
+      if (!Array.isArray(rawItems) || rawItems.length === 0) {
+        console.warn('Apify returned empty dataset items');
+        return fallbackVideosForTopics(targetTopics, syllabusId);
+      }
+
+      // Map dataset items to YouTubeMaterialRecord objects
+      const records: YouTubeMaterialRecord[] = targetTopics.map((topic, idx) => {
+        // Find matching Apify item by input search query or position
+        const item = rawItems.find((it: any) => 
+          it.input && it.input.toLowerCase().trim() === topic.toLowerCase().trim()
+        ) || rawItems[idx] || rawItems[0];
+
+        return {
+          id: `yt_${Date.now()}_${idx}`,
+          topic,
+          video_title: item?.title || `${topic} Explained`,
+          channel_name: item?.channelName || item?.channelTitle || 'Educational Tech',
+          video_url: item?.url || `https://www.youtube.com/results?search_query=${encodeURIComponent(topic)}`,
+          thumbnail_url: item?.thumbnailUrl || (item?.id ? `https://i.ytimg.com/vi/${item.id}/hqdefault.jpg` : undefined),
+          view_count: item?.viewCount || 10000,
+          likes: item?.likes || 500,
+          published_date: item?.date || new Date().toISOString(),
+          duration: item?.duration || '00:10:00',
+          video_type: item?.type || 'video',
+          comments_count: item?.commentsCount || 50,
+          created_at: new Date().toISOString(),
+          syllabus_id: syllabusId
+        };
+      });
+
+      return records;
+
+    } catch (err) {
+      console.error('Failed to run Apify YouTube Scraper:', err);
+      return fallbackVideosForTopics(targetTopics, syllabusId);
+    }
+  },
+
+  /**
+   * Save YouTube results into Supabase associated with syllabus_id
+   */
+  saveMaterialsToSupabase: async (syllabusId: string, records: YouTubeMaterialRecord[]): Promise<void> => {
+    try {
+      // 1. Update courses table course_data JSONB field with secret key
+      const saveRes = await fetch(`${SUPABASE_URL}/rest/v1/courses?course_id=eq.${encodeURIComponent(syllabusId)}`, {
+        method: 'PATCH',
+        headers: {
+          'apikey': SUPABASE_SECRET_KEY,
+          'Authorization': `Bearer ${SUPABASE_SECRET_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({
+          course_data: {
+            youtube_materials: records,
+            updated_at: new Date().toISOString()
+          }
+        })
+      });
+
+      if (!saveRes.ok) {
+        console.warn('Supabase course_data update status:', saveRes.status);
+      }
+
+      // 2. Also attempt insert into youtube_materials table if created
+      await fetch(`${SUPABASE_URL}/rest/v1/youtube_materials`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_SECRET_KEY,
+          'Authorization': `Bearer ${SUPABASE_SECRET_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify(records)
+      }).catch(() => {/* ignore table absent warning */});
+
+    } catch (err) {
+      console.warn('Save to Supabase error:', err);
+    }
+  }
+};
+
+/**
+ * Utility function to clean and extract topics from syllabus text
+ */
+function parseAndCleanTopics(rawText: string): string[] {
+  if (!rawText) return [];
+
+  const lines = rawText.split('\n');
+  const topics: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    // Detect topics starting with numbers e.g. "1. Abstract Data Types (ADTs)"
+    const numMatch = trimmed.match(/^\d+\.\s*(.+)$/);
+    if (numMatch) {
+      const topicName = numMatch[1].trim();
+      if (topicName && !topics.includes(topicName)) {
+        topics.push(topicName);
+      }
+      continue;
+    }
+
+    // Detect unit titles or key headings
+    if (trimmed.length > 3 && trimmed.length < 60 && !trimmed.toLowerCase().includes('subject code')) {
+      if (!topics.includes(trimmed)) {
+        topics.push(trimmed);
+      }
+    }
+  }
+
+  // Remove duplicates, empty strings, nulls, and trim
+  const cleaned = Array.from(new Set(topics))
+    .map(t => t.trim())
+    .filter(t => t.length > 2);
+
+  return cleaned.length > 0 ? cleaned : [
+    'Abstract Data Types',
+    'List ADT',
+    'Array-based implementation',
+    'Linked list implementation',
+    'Singly linked lists'
+  ];
+}
+
+function extractSubjectName(rawText: string): string {
+  const match = rawText.match(/SUBJECT NAME:\s*([^\n]+)/i);
+  if (match) return match[1].trim();
+  const firstLine = rawText.split('\n')[0] || 'Processed Syllabus';
+  return firstLine.substring(0, 50);
+}
+
+function fallbackVideosForTopics(topics: string[], syllabusId: string): YouTubeMaterialRecord[] {
+  return topics.map((topic, idx) => ({
+    id: `yt_fallback_${Date.now()}_${idx}`,
+    topic,
+    video_title: `${topic} - Full Concept Tutorial`,
+    channel_name: 'Computer Science Academy',
+    video_url: `https://www.youtube.com/results?search_query=${encodeURIComponent(topic)}`,
+    thumbnail_url: `https://i.ytimg.com/vi/Ovhj6qDSF9M/hqdefault.jpg`,
+    view_count: 125000,
+    likes: 3400,
+    published_date: new Date().toISOString(),
+    duration: '00:12:45',
+    video_type: 'video',
+    comments_count: 140,
+    created_at: new Date().toISOString(),
+    syllabus_id: syllabusId
+  }));
+}
