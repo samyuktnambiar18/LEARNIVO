@@ -15,7 +15,7 @@ export const LandingPage: React.FC = () => {
     if (currentUser) {
       navigate('/dashboard');
     } else {
-      navigate('/onboarding');
+      navigate('/login');
     }
   };
 
@@ -38,7 +38,7 @@ export const LandingPage: React.FC = () => {
                 <Link to="/login" className="text-sm font-medium text-[#A6A1B2] hover:text-white transition-colors px-3 py-2">
                   Sign In
                 </Link>
-                <Button variant="primary" onClick={() => navigate('/onboarding')}>
+                <Button variant="primary" onClick={() => navigate('/login')}>
                   Start Learning
                 </Button>
               </>
