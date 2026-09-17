@@ -32,8 +32,8 @@ interface MagicViewRendererProps {
 
 type NarrationState = 'idle' | 'loading' | 'speaking' | 'paused' | 'finished';
 
-// Wrap text into clean lines without truncation
-function wrapSvgText(text: string, maxCharsPerLine: number = 20): string[] {
+// Wrap text into clean lines without truncation (max 18 chars for 220px node width)
+function wrapSvgText(text: string, maxCharsPerLine: number = 18): string[] {
   if (!text) return [];
   const words = text.trim().split(/\s+/);
   const lines: string[] = [];
@@ -51,7 +51,7 @@ function wrapSvgText(text: string, maxCharsPerLine: number = 20): string[] {
   return lines;
 }
 
-// Calculate node box boundary intersection point for arrow lines
+// Calculate precise box boundary intersection point for SVG arrow lines
 function getBoxIntersection(
   fromX: number,
   fromY: number,
@@ -99,13 +99,13 @@ function processMagicHtml(rawHtml: string): string {
         justify-content: center !important;
       }
       .node, .flowchart-node, .step-card, .card, [class*="node"], [class*="box"] {
-        min-width: 220px !important;
-        max-width: 280px !important;
-        min-height: 80px !important;
-        font-size: 16px !important;
+        min-width: 200px !important;
+        max-width: 250px !important;
+        min-height: 75px !important;
+        font-size: 15px !important;
         font-weight: bold !important;
-        padding: 14px 20px !important;
-        margin: 16px auto !important;
+        padding: 12px 18px !important;
+        margin: 14px auto !important;
         box-sizing: border-box !important;
         white-space: normal !important;
         word-break: break-word !important;
@@ -465,8 +465,8 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
 
         {/* Responsive Grid: Left Panel ~62% Width (7 Cols), Right Panel ~38% Width (5 Cols) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 w-full items-start">
-          {/* Main Visual Display (Left Panel ~62% Width, min-height 520px, scrollable max-height 650px) */}
-          <div className="lg:col-span-7 w-full bg-[#121118] p-3 sm:p-5 rounded-xl border border-white/10 flex flex-col justify-center items-center min-h-[520px] max-h-[650px] overflow-y-auto overflow-x-hidden relative box-border">
+          {/* Main Visual Display (Left Panel ~62% Width, min-height 500px, scrollable max-height 650px) */}
+          <div className="lg:col-span-7 w-full bg-[#121118] p-3 sm:p-5 rounded-xl border border-white/10 flex flex-col justify-center items-center min-h-[500px] max-h-[650px] overflow-y-auto overflow-x-hidden relative box-border">
             {activeTab === 'html' && data.html ? (
               <div className="w-full h-full flex flex-col rounded-lg overflow-hidden min-h-[480px]">
                 <div className="p-2 bg-[#181620] border-b border-white/10 flex items-center justify-between text-xs text-[#A6A1B2] mb-2">
@@ -474,7 +474,7 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
                     <Code className="w-3.5 h-3.5" /> HTML Preview
                   </span>
                 </div>
-                <div className="w-full h-[500px] bg-[#0B0A0F] rounded-lg overflow-hidden relative">
+                <div className="w-full h-[480px] bg-[#0B0A0F] rounded-lg overflow-hidden relative">
                   <iframe
                     srcDoc={processMagicHtml(data.html)}
                     title="Magic View HTML Code Preview"
@@ -501,7 +501,7 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
                 <img
                   src={data.imageUrl}
                   alt={data.title || 'Magic View Image Preview'}
-                  className="max-h-[500px] w-auto max-w-full object-contain rounded-lg border border-white/10 shadow-lg"
+                  className="max-h-[480px] w-auto max-w-full object-contain rounded-lg border border-white/10 shadow-lg"
                 />
               </div>
             ) : (
@@ -516,7 +516,7 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
             )}
           </div>
 
-          {/* Explanation & Controls Panel (Right Panel ~38% Width, min-width 320px) */}
+          {/* Explanation & Controls Panel (Right Panel ~38% Width) */}
           <div className="lg:col-span-5 w-full flex flex-col justify-between space-y-4">
             {/* Active Step Card */}
             {activeStep ? (
@@ -717,10 +717,10 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
 };
 
 // ============================================================================
-// SVG CANVAS COMPONENT (Well-Spaced, Non-Overlapping Flowchart Engine)
-// Node Size: Width 240px, Height 88px-96px (Desktop Range 200-280px)
-// Node Gap: 50px vertical gap, 70px horizontal gap (No overlapping!)
-// ViewBox: Fitted to node bounding box + padding (No distorting scale)
+// SVG CANVAS COMPONENT (Optimized Node Size & Crisp Flowchart Connections)
+// Node Size: Width 220px, Height 80px-88px (Desktop Range 190-250px)
+// Connection Gap: 46px vertical spacing with center-aligned arrow lines & badges
+// Dynamic ViewBox: Dynamic bounding box fitting around elements
 // ============================================================================
 
 interface MagicSvgCanvasProps {
@@ -750,11 +750,11 @@ const MagicSvgCanvas: React.FC<MagicSvgCanvasProps> = ({
     const x = elem.position?.x ?? 400;
     const y = elem.position?.y ?? 200;
 
-    const labelLines = wrapSvgText(elem.label || 'Node Element', 20);
-    const boxWidth = elem.width || 240;
+    const labelLines = wrapSvgText(elem.label || 'Node Element', 18);
+    const boxWidth = elem.width || 220;
     const lineCount = labelLines.length || 1;
     const hasValue = Boolean(elem.value);
-    const boxHeight = elem.height || (lineCount > 1 || hasValue ? 96 : 88);
+    const boxHeight = elem.height || (lineCount > 1 || hasValue ? 88 : 80);
 
     const halfW = boxWidth / 2;
     const halfH = boxHeight / 2;
@@ -771,36 +771,36 @@ const MagicSvgCanvas: React.FC<MagicSvgCanvasProps> = ({
     if (fromElem && toElem && conn.label) {
       const midX = ((fromElem.position?.x ?? 400) + (toElem.position?.x ?? 400)) / 2;
       const midY = ((fromElem.position?.y ?? 200) + (toElem.position?.y ?? 200)) / 2;
-      const labelW = conn.label.length * 8 + 24;
+      const labelW = conn.label.length * 7 + 20;
       minX = Math.min(minX, midX - labelW / 2);
       maxX = Math.max(maxX, midX + labelW / 2);
-      minY = Math.min(minY, midY - 16);
-      maxY = Math.max(maxY, midY + 16);
+      minY = Math.min(minY, midY - 14);
+      maxY = Math.max(maxY, midY + 14);
     }
   });
 
   if (minX === Infinity || maxX === -Infinity) {
-    minX = 260;
-    maxX = 540;
-    minY = 40;
-    maxY = 700;
+    minX = 290;
+    maxX = 510;
+    minY = 30;
+    maxY = 650;
   }
 
   // Padding around diagram inside viewBox
-  const paddingX = 50;
-  const paddingY = 40;
+  const paddingX = 40;
+  const paddingY = 30;
 
   const vbX = Math.floor(minX - paddingX);
   const vbY = Math.floor(minY - paddingY);
-  const vbW = Math.max(340, Math.ceil(maxX - minX + paddingX * 2));
-  const vbH = Math.max(240, Math.ceil(maxY - minY + paddingY * 2));
+  const vbW = Math.max(300, Math.ceil(maxX - minX + paddingX * 2));
+  const vbH = Math.max(220, Math.ceil(maxY - minY + paddingY * 2));
 
   const viewBoxStr = `${vbX} ${vbY} ${vbW} ${vbH}`;
 
   return (
     <svg
       viewBox={viewBoxStr}
-      className="w-full h-auto max-h-[580px] object-contain select-none transition-all duration-300"
+      className="w-full h-auto max-h-[560px] object-contain select-none transition-all duration-300"
     >
       <defs>
         {/* Arrowhead Marker Definitions */}
@@ -809,8 +809,8 @@ const MagicSvgCanvas: React.FC<MagicSvgCanvasProps> = ({
           viewBox="0 0 10 10"
           refX="8"
           refY="5"
-          markerWidth="8.5"
-          markerHeight="8.5"
+          markerWidth="7.5"
+          markerHeight="7.5"
           orient="auto-start-reverse"
         >
           <path d="M 0 1 L 10 5 L 0 9 z" fill="#C7FF4A" />
@@ -821,8 +821,8 @@ const MagicSvgCanvas: React.FC<MagicSvgCanvasProps> = ({
           viewBox="0 0 10 10"
           refX="8"
           refY="5"
-          markerWidth="7"
-          markerHeight="7"
+          markerWidth="6.5"
+          markerHeight="6.5"
           orient="auto-start-reverse"
         >
           <path d="M 0 1 L 10 5 L 0 9 z" fill="#8B5CF6" />
@@ -830,12 +830,12 @@ const MagicSvgCanvas: React.FC<MagicSvgCanvasProps> = ({
 
         {/* Subtle Glow Filter */}
         <filter id="glow-lime-subtle" x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur stdDeviation="4" result="blur" />
+          <feGaussianBlur stdDeviation="3.5" result="blur" />
           <feComposite in="SourceGraphic" in2="blur" operator="over" />
         </filter>
 
         <filter id="glow-purple-subtle" x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur stdDeviation="4" result="blur" />
+          <feGaussianBlur stdDeviation="3.5" result="blur" />
           <feComposite in="SourceGraphic" in2="blur" operator="over" />
         </filter>
       </defs>
@@ -846,7 +846,7 @@ const MagicSvgCanvas: React.FC<MagicSvgCanvasProps> = ({
       </pattern>
       <rect x={vbX} y={vbY} width={vbW} height={vbH} fill="url(#grid-pattern-clean)" rx="12" />
 
-      {/* RENDER CONNECTIONS WITH CLEAN SPACING */}
+      {/* RENDER CONNECTIONS WITH CLEAN ANCHORED SPACING */}
       {connections.map((conn, idx) => {
         const fromElem = elementsMap[conn.from];
         const toElem = elementsMap[conn.to];
@@ -854,17 +854,17 @@ const MagicSvgCanvas: React.FC<MagicSvgCanvasProps> = ({
         if (!fromElem || !toElem) return null;
 
         const fromX = fromElem.position?.x ?? 400;
-        const fromY = fromElem.position?.y ?? 100;
+        const fromY = fromElem.position?.y ?? 70;
         const toX = toElem.position?.x ?? 400;
-        const toY = toElem.position?.y ?? 240;
+        const toY = toElem.position?.y ?? 196;
 
-        const fromW = fromElem.width || 240;
-        const fromLabelLines = wrapSvgText(fromElem.label || '', 20);
-        const fromH = fromElem.height || (fromLabelLines.length > 1 || fromElem.value ? 96 : 88);
+        const fromW = fromElem.width || 220;
+        const fromLabelLines = wrapSvgText(fromElem.label || '', 18);
+        const fromH = fromElem.height || (fromLabelLines.length > 1 || fromElem.value ? 88 : 80);
 
-        const toW = toElem.width || 240;
-        const toLabelLines = wrapSvgText(toElem.label || '', 20);
-        const toH = toElem.height || (toLabelLines.length > 1 || toElem.value ? 96 : 88);
+        const toW = toElem.width || 220;
+        const toLabelLines = wrapSvgText(toElem.label || '', 18);
+        const toH = toElem.height || (toLabelLines.length > 1 || toElem.value ? 88 : 80);
 
         // Calculate exact start & end points at node borders
         const startPt = getBoxIntersection(fromX, fromY, fromW, fromH, toX, toY);
@@ -887,21 +887,21 @@ const MagicSvgCanvas: React.FC<MagicSvgCanvasProps> = ({
               x2={endPt.x}
               y2={endPt.y}
               stroke={strokeColor}
-              strokeWidth={isConnActive ? 3.5 : 2.5}
+              strokeWidth={isConnActive ? 3 : 2}
               strokeDasharray={isDashed ? '6 6' : undefined}
               markerEnd={conn.direction !== 'none' ? markerId : undefined}
-              opacity={isConnActive ? 1 : 0.75}
+              opacity={isConnActive ? 1 : 0.8}
               className="transition-all duration-300"
             />
 
-            {/* Connection Label Badge with Dark Background */}
+            {/* Connection Label Badge Positioned Cleanly Between Nodes */}
             {conn.label && (
               <g transform={`translate(${midX}, ${midY})`}>
                 <rect
-                  x={-(conn.label.length * 4.5 + 10)}
-                  y="-12"
-                  width={conn.label.length * 9 + 20}
-                  height="24"
+                  x={-(conn.label.length * 3.8 + 8)}
+                  y="-11"
+                  width={conn.label.length * 7.6 + 16}
+                  height="22"
                   rx="6"
                   fill="#121118"
                   stroke={strokeColor}
@@ -923,7 +923,7 @@ const MagicSvgCanvas: React.FC<MagicSvgCanvasProps> = ({
         );
       })}
 
-      {/* RENDER ELEMENTS WITH SPACED NODE LAYOUT */}
+      {/* RENDER ELEMENTS WITH REFINED NODE SIZE (220px x 80px-88px) */}
       {elements.map((elem) => {
         const x = elem.position?.x ?? 400;
         const y = elem.position?.y ?? 200;
@@ -933,12 +933,12 @@ const MagicSvgCanvas: React.FC<MagicSvgCanvasProps> = ({
         const elemType = (elem.type || 'box').toLowerCase();
 
         // Wrap label lines for ZERO truncation
-        const labelLines = wrapSvgText(elem.label || 'Node Element', 20);
+        const labelLines = wrapSvgText(elem.label || 'Node Element', 18);
 
-        const boxWidth = elem.width || 240;
+        const boxWidth = elem.width || 220;
         const lineCount = labelLines.length || 1;
         const hasValue = Boolean(elem.value);
-        const boxHeight = elem.height || (lineCount > 1 || hasValue ? 96 : 88);
+        const boxHeight = elem.height || (lineCount > 1 || hasValue ? 88 : 80);
 
         const halfW = boxWidth / 2;
         const halfH = boxHeight / 2;
@@ -946,17 +946,17 @@ const MagicSvgCanvas: React.FC<MagicSvgCanvasProps> = ({
         return (
           <g
             key={elem.id}
-            transform={`translate(${x}, ${y}) scale(${isActive || isSelected ? 1.04 : 1})`}
+            transform={`translate(${x}, ${y}) scale(${isActive || isSelected ? 1.03 : 1})`}
             onClick={() => onSelectElement(elem.id)}
             className="cursor-pointer group transition-all duration-300"
           >
             {/* Active Glow Outline */}
             {(isActive || isSelected) && (
               <rect
-                x={-halfW - 5}
-                y={-halfH - 5}
-                width={boxWidth + 10}
-                height={boxHeight + 10}
+                x={-halfW - 4}
+                y={-halfH - 4}
+                width={boxWidth + 8}
+                height={boxHeight + 8}
                 rx="14"
                 fill="none"
                 stroke={isSelected ? '#8B5CF6' : '#C7FF4A'}
@@ -970,19 +970,19 @@ const MagicSvgCanvas: React.FC<MagicSvgCanvasProps> = ({
             {elemType === 'circle' && (
               <g>
                 <circle
-                  r={Math.max(55, halfW * 0.5)}
+                  r={Math.max(50, halfW * 0.48)}
                   fill={isActive ? 'rgba(199, 255, 74, 0.18)' : 'rgba(24, 22, 32, 0.94)'}
                   stroke={isActive ? '#C7FF4A' : elem.color || 'rgba(255,255,255,0.3)'}
-                  strokeWidth={isActive ? 3.5 : 2}
+                  strokeWidth={isActive ? 3 : 2}
                   filter={isActive ? 'url(#glow-lime-subtle)' : undefined}
                 />
                 {labelLines.map((line, lIdx) => {
-                  const startY = -(labelLines.length - 1) * 10 + (hasValue ? -8 : 0);
+                  const startY = -(labelLines.length - 1) * 9 + (hasValue ? -7 : 0);
                   return (
                     <text
                       key={lIdx}
                       x="0"
-                      y={startY + lIdx * 20}
+                      y={startY + lIdx * 18}
                       fill={isActive ? '#C7FF4A' : '#F7F5FA'}
                       fontSize="15"
                       fontWeight="bold"
@@ -995,9 +995,9 @@ const MagicSvgCanvas: React.FC<MagicSvgCanvasProps> = ({
                 {elem.value && (
                   <text
                     x="0"
-                    y={(labelLines.length - 1) * 10 + 20}
+                    y={(labelLines.length - 1) * 9 + 18}
                     fill="#C7FF4A"
-                    fontSize="13"
+                    fontSize="12"
                     fontWeight="600"
                     textAnchor="middle"
                     fontFamily="monospace"
@@ -1019,18 +1019,18 @@ const MagicSvgCanvas: React.FC<MagicSvgCanvasProps> = ({
                   rx="12"
                   fill={isActive ? 'rgba(139, 92, 246, 0.22)' : 'rgba(18, 17, 24, 0.95)'}
                   stroke={isActive ? '#C7FF4A' : '#8B5CF6'}
-                  strokeWidth={isActive ? 3 : 2}
+                  strokeWidth={isActive ? 2.5 : 1.8}
                   filter={isActive ? 'url(#glow-purple-subtle)' : undefined}
                 />
                 {labelLines.map((line, lIdx) => {
-                  const startY = -halfH + 26;
+                  const startY = -halfH + 24;
                   return (
                     <text
                       key={lIdx}
                       x="0"
-                      y={startY + lIdx * 20}
+                      y={startY + lIdx * 18}
                       fill="#C7FF4A"
-                      fontSize="14"
+                      fontSize="13"
                       fontWeight="bold"
                       textAnchor="middle"
                     >
@@ -1040,9 +1040,9 @@ const MagicSvgCanvas: React.FC<MagicSvgCanvasProps> = ({
                 })}
                 <text
                   x="0"
-                  y={halfH - 16}
+                  y={halfH - 14}
                   fill="#F7F5FA"
-                  fontSize="16"
+                  fontSize="15"
                   fontWeight="bold"
                   textAnchor="middle"
                   fontFamily="serif"
@@ -1064,15 +1064,15 @@ const MagicSvgCanvas: React.FC<MagicSvgCanvasProps> = ({
                   rx={halfH}
                   fill={isActive ? '#C7FF4A' : 'rgba(24, 22, 32, 0.94)'}
                   stroke={isActive ? '#FFFFFF' : 'rgba(255,255,255,0.3)'}
-                  strokeWidth="2.5"
+                  strokeWidth="2"
                 />
                 {labelLines.map((line, lIdx) => {
-                  const startY = -(labelLines.length - 1) * 10;
+                  const startY = -(labelLines.length - 1) * 9;
                   return (
                     <text
                       key={lIdx}
                       x="0"
-                      y={startY + lIdx * 20 + 4}
+                      y={startY + lIdx * 18 + 4}
                       fill={isActive ? '#0B0A0F' : '#F7F5FA'}
                       fontSize="15"
                       fontWeight="bold"
@@ -1096,17 +1096,17 @@ const MagicSvgCanvas: React.FC<MagicSvgCanvasProps> = ({
                   rx="12"
                   fill={isActive ? 'rgba(199, 255, 74, 0.16)' : 'rgba(24, 22, 32, 0.95)'}
                   stroke={isActive ? '#C7FF4A' : elem.color || 'rgba(255,255,255,0.3)'}
-                  strokeWidth={isActive ? 3 : 2}
+                  strokeWidth={isActive ? 2.5 : 1.8}
                   filter={isActive ? 'url(#glow-lime-subtle)' : undefined}
                 />
                 {labelLines.map((line, lIdx) => {
                   // Vertically center lines in node box
-                  const startY = -halfH + 28 + (hasValue ? 0 : (boxHeight - 56 - labelLines.length * 20) / 2);
+                  const startY = -halfH + 26 + (hasValue ? 0 : (boxHeight - 52 - labelLines.length * 18) / 2);
                   return (
                     <text
                       key={lIdx}
                       x="0"
-                      y={startY + lIdx * 20}
+                      y={startY + lIdx * 18}
                       fill={isActive ? '#C7FF4A' : '#F7F5FA'}
                       fontSize="16"
                       fontWeight="bold"
@@ -1119,7 +1119,7 @@ const MagicSvgCanvas: React.FC<MagicSvgCanvasProps> = ({
                 {elem.value && (
                   <text
                     x="0"
-                    y={halfH - 16}
+                    y={halfH - 14}
                     fill="#F7F5FA"
                     fontSize="13"
                     fontWeight="500"
@@ -1139,8 +1139,8 @@ const MagicSvgCanvas: React.FC<MagicSvgCanvasProps> = ({
 };
 
 /**
- * Intelligent Layout engine: Allocates spacious coordinates for nodes with explicit V_GAP (50px)
- * and H_GAP (70px) so nodes NEVER overlap each other or connection arrows.
+ * Intelligent Layout engine: Allocates spacious coordinates for nodes with explicit V_GAP (46px)
+ * and H_GAP (60px) so nodes NEVER overlap each other or connection arrows.
  */
 function layoutElementsIntelligently(
   elements: MagicViewElement[],
@@ -1156,18 +1156,18 @@ function layoutElementsIntelligently(
   const isHorizontal = vType.includes('horizontal') || vType.includes('timeline') || vType.includes('pipeline');
   const isComparison = vType.includes('compare') || vType.includes('versus') || (total === 4 && connections.length >= 2);
 
-  // 1. Cycle Layout (Circular Spacing around Center 400, 320)
+  // 1. Cycle Layout (Circular Spacing around Center 380, 280)
   if (isCycle && total >= 3) {
-    const centerX = 400;
-    const centerY = 320;
-    const radius = Math.min(260, 180 + total * 15);
+    const centerX = 380;
+    const centerY = 280;
+    const radius = Math.min(240, 170 + total * 15);
 
     return elements.map((elem, i) => {
       const angle = (i * 2 * Math.PI) / total - Math.PI / 2;
       return {
         ...elem,
-        width: 240,
-        height: 88,
+        width: 220,
+        height: 80,
         position: {
           x: Math.round(centerX + radius * Math.cos(angle)),
           y: Math.round(centerY + radius * Math.sin(angle)),
@@ -1176,35 +1176,35 @@ function layoutElementsIntelligently(
     });
   }
 
-  // 2. Horizontal Flow (Left to Right: Node 240px + Gap 70px = 310px Step)
+  // 2. Horizontal Flow (Left to Right: Node 220px + Gap 60px = 280px Step)
   if (isHorizontal) {
-    const nodeWidth = 240;
-    const hGap = 70;
-    const spacingX = nodeWidth + hGap; // 310px
-    const startX = 180;
+    const nodeWidth = 220;
+    const hGap = 60;
+    const spacingX = nodeWidth + hGap; // 280px
+    const startX = 160;
 
     return elements.map((elem, i) => ({
       ...elem,
       width: nodeWidth,
-      height: 88,
+      height: 80,
       position: {
         x: startX + i * spacingX,
-        y: 160,
+        y: 140,
       },
     }));
   }
 
-  // 3. 2-Column Comparison Layout (Column 1: 220px, Column 2: 580px, Row Step: 150px)
+  // 3. 2-Column Comparison Layout (Column 1: 200px, Column 2: 540px, Row Step: 136px)
   if (isComparison && total >= 4) {
-    const col1X = 220;
-    const col2X = 580;
-    const rowStep = 150; // Height 90px + V_GAP 60px
-    const startY = 100;
+    const col1X = 200;
+    const col2X = 540;
+    const rowStep = 136;
+    const startY = 80;
 
     return elements.map((elem, i) => ({
       ...elem,
-      width: 240,
-      height: 88,
+      width: 220,
+      height: 80,
       position: {
         x: i % 2 === 0 ? col1X : col2X,
         y: startY + Math.floor(i / 2) * rowStep,
@@ -1212,16 +1212,16 @@ function layoutElementsIntelligently(
     }));
   }
 
-  // 4. Default Vertical Flow (Top to Bottom: Center X=400, Row Step=140px [Node Height 90px + V_GAP 50px])
-  const nodeWidth = 240;
-  const nodeHeight = 88;
-  const vGap = 52;
-  const rowStep = nodeHeight + vGap; // 140px between centers
-  const startY = 80;
+  // 4. Default Vertical Flow (Top to Bottom: Center X=400, Row Step=126px [Node Height 80px + V_GAP 46px])
+  const nodeWidth = 220;
+  const nodeHeight = 80;
+  const vGap = 46;
+  const rowStep = nodeHeight + vGap; // 126px between centers
+  const startY = 70;
 
   return elements.map((elem, i) => {
-    const labelLines = wrapSvgText(elem.label || '', 20);
-    const dynamicH = labelLines.length > 1 || elem.value ? 96 : 88;
+    const labelLines = wrapSvgText(elem.label || '', 18);
+    const dynamicH = labelLines.length > 1 || elem.value ? 88 : 80;
     return {
       ...elem,
       width: nodeWidth,
@@ -1263,10 +1263,10 @@ function deriveVisualElementsAndSteps(data: MagicViewData): {
 
   if (queryLower.includes('matrix') || (data.visual_type && data.visual_type.includes('math'))) {
     rawElements = [
-      { id: 'm_val1', label: 'Row 1: [ 1  2 ]', type: 'formula', position: { x: 220, y: 120 }, value: '[ 1   2 ]', details: 'Top row entries' },
-      { id: 'm_val2', label: 'Row 2: [ 3  4 ]', type: 'formula', position: { x: 220, y: 270 }, value: '[ 3   4 ]', details: 'Bottom row entries' },
-      { id: 'm_rows', label: 'ROWS (Horizontal)', type: 'box', position: { x: 580, y: 120 }, color: '#C7FF4A', details: 'Horizontal dimension m' },
-      { id: 'm_cols', label: 'COLUMNS (Vertical)', type: 'box', position: { x: 580, y: 270 }, color: '#8B5CF6', details: 'Vertical dimension n' },
+      { id: 'm_val1', label: 'Row 1: [ 1  2 ]', type: 'formula', position: { x: 200, y: 100 }, value: '[ 1   2 ]', details: 'Top row entries' },
+      { id: 'm_val2', label: 'Row 2: [ 3  4 ]', type: 'formula', position: { x: 200, y: 236 }, value: '[ 3   4 ]', details: 'Bottom row entries' },
+      { id: 'm_rows', label: 'ROWS (Horizontal)', type: 'box', position: { x: 540, y: 100 }, color: '#C7FF4A', details: 'Horizontal dimension m' },
+      { id: 'm_cols', label: 'COLUMNS (Vertical)', type: 'box', position: { x: 540, y: 236 }, color: '#8B5CF6', details: 'Vertical dimension n' },
     ];
     rawConnections = [
       { from: 'm_val1', to: 'm_rows', label: 'Row 1', direction: 'forward', type: 'arrow' },
@@ -1274,9 +1274,9 @@ function deriveVisualElementsAndSteps(data: MagicViewData): {
     ];
   } else if (queryLower.includes('water') || queryLower.includes('cycle') || (data.visual_type && data.visual_type.includes('cycle'))) {
     rawElements = [
-      { id: 'evap', label: 'Evaporation', type: 'circle', position: { x: 240, y: 360 }, value: 'Heat → Vapor', details: 'Solar heat transforms surface water into vapor' },
-      { id: 'cond', label: 'Condensation', type: 'circle', position: { x: 400, y: 140 }, value: 'Cloud Formation', details: 'Cooling vapor condenses into clouds' },
-      { id: 'prec', label: 'Precipitation', type: 'circle', position: { x: 560, y: 360 }, value: 'Rain / Snow', details: 'Condensed moisture falls to earth' },
+      { id: 'evap', label: 'Evaporation', type: 'circle', position: { x: 220, y: 320 }, value: 'Heat → Vapor', details: 'Solar heat transforms surface water into vapor' },
+      { id: 'cond', label: 'Condensation', type: 'circle', position: { x: 380, y: 120 }, value: 'Cloud Formation', details: 'Cooling vapor condenses into clouds' },
+      { id: 'prec', label: 'Precipitation', type: 'circle', position: { x: 540, y: 320 }, value: 'Rain / Snow', details: 'Condensed moisture falls to earth' },
     ];
     rawConnections = [
       { from: 'evap', to: 'cond', label: 'Rises', direction: 'forward', type: 'arrow' },
@@ -1285,9 +1285,9 @@ function deriveVisualElementsAndSteps(data: MagicViewData): {
     ];
   } else if (queryLower.includes('binary') || queryLower.includes('search') || (data.visual_type && data.visual_type.includes('algorithm'))) {
     rawElements = [
-      { id: 'arr_l', label: 'Left Pointer (0)', type: 'box', position: { x: 180, y: 160 }, value: 'Val: 2', details: 'Lower search index' },
-      { id: 'arr_m', label: 'Middle (Mid)', type: 'circle', position: { x: 490, y: 160 }, value: 'Val: 10', color: '#C7FF4A', details: 'Target compared with middle element' },
-      { id: 'arr_r', label: 'Right Pointer (N-1)', type: 'box', position: { x: 800, y: 160 }, value: 'Val: 25', details: 'Upper search index' },
+      { id: 'arr_l', label: 'Left Pointer (0)', type: 'box', position: { x: 160, y: 140 }, value: 'Val: 2', details: 'Lower search index' },
+      { id: 'arr_m', label: 'Middle (Mid)', type: 'circle', position: { x: 440, y: 140 }, value: 'Val: 10', color: '#C7FF4A', details: 'Target compared with middle element' },
+      { id: 'arr_r', label: 'Right Pointer (N-1)', type: 'box', position: { x: 720, y: 140 }, value: 'Val: 25', details: 'Upper search index' },
     ];
     rawConnections = [
       { from: 'arr_l', to: 'arr_m', label: 'Target > Mid', direction: 'forward', type: 'arrow' },
@@ -1298,7 +1298,7 @@ function deriveVisualElementsAndSteps(data: MagicViewData): {
       id: `derived_step_${idx + 1}`,
       label: s.title || `Step ${idx + 1}`,
       type: idx % 2 === 0 ? 'box' : 'circle',
-      position: { x: 400, y: 80 + idx * 140 },
+      position: { x: 400, y: 70 + idx * 126 },
       details: s.description,
     }));
     rawConnections = rawElements.slice(0, -1).map((e, idx) => ({
@@ -1310,8 +1310,8 @@ function deriveVisualElementsAndSteps(data: MagicViewData): {
     }));
   } else {
     rawElements = [
-      { id: 'n_concept', label: data.concept || 'Target Concept', type: 'circle', position: { x: 250, y: 160 }, value: data.visual_type },
-      { id: 'n_summary', label: 'Core Mechanism', type: 'box', position: { x: 550, y: 160 }, color: '#C7FF4A', details: data.summary },
+      { id: 'n_concept', label: data.concept || 'Target Concept', type: 'circle', position: { x: 230, y: 140 }, value: data.visual_type },
+      { id: 'n_summary', label: 'Core Mechanism', type: 'box', position: { x: 510, y: 140 }, color: '#C7FF4A', details: data.summary },
     ];
     rawConnections = [
       { from: 'n_concept', to: 'n_summary', label: 'Mechanism', direction: 'forward', type: 'arrow' },
