@@ -82,8 +82,32 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({ questions, o
     setIsSubmitting(true);
     setError(null);
 
-    // Format expected answers array:
-    // [{ question_id: "...", selected_option: 0 }, ...]
+    // Compare user selected answers with correctAnswer received from webhook
+    let correctCount = 0;
+    const answerBreakdown = questions.map(q => {
+      const selectedIdx = answersMap[q.id];
+      const userAnswer = (selectedIdx !== undefined && q.options && q.options[selectedIdx])
+        ? q.options[selectedIdx]
+        : '';
+      const isCorrect = userAnswer.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase();
+      if (isCorrect) correctCount++;
+      return {
+        questionId: q.id,
+        questionText: q.questionText,
+        topic: q.topic,
+        userAnswer: userAnswer || 'No answer selected',
+        correctAnswer: q.correctAnswer,
+        explanation: q.explanation,
+        isCorrect
+      };
+    });
+
+    const totalQuestions = questions.length;
+    const scorePercentage = Math.round((correctCount / totalQuestions) * 100);
+    const obtainedMarks = correctCount * 10;
+    const totalMarks = totalQuestions * 10;
+
+    // Format expected answers payload for webhook
     const answersPayload = questions.map(q => ({
       question_id: q.id,
       selected_option: answersMap[q.id] !== undefined ? answersMap[q.id] : 0
@@ -100,28 +124,58 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({ questions, o
         answersPayload
       );
 
-      setResult(evaluationResult);
+      const finalResult: AssessmentEvaluationResult = {
+        score: scorePercentage,
+        total_marks: totalMarks,
+        obtained_marks: obtainedMarks,
+        correct_answers: correctCount,
+        incorrect_answers: totalQuestions - correctCount,
+        weak_topics: Array.from(new Set(answerBreakdown.filter(a => !a.isCorrect).map(a => a.topic))),
+        strong_topics: Array.from(new Set(answerBreakdown.filter(a => a.isCorrect).map(a => a.topic))),
+        misconceptions: evaluationResult.misconceptions || [],
+        knowledge_gaps: evaluationResult.knowledge_gaps || [],
+        level: scorePercentage >= 80 ? 'Advanced' : scorePercentage >= 50 ? 'Intermediate' : 'Beginner',
+        raw: { ...evaluationResult, answerBreakdown }
+      };
+
+      setResult(finalResult);
 
       // Save result to local storage for history/progress tracking
       storageService.saveAssessmentResult({
         id: 'eval_' + Date.now(),
         assessmentTitle: 'Diagnostic Assessment Suite',
         completedAt: new Date().toISOString(),
-        scorePercentage: evaluationResult.score,
-        totalQuestions: 10,
-        correctCount: evaluationResult.correct_answers,
-        topicBreakdown: evaluationResult.weak_topics.map(t => ({ topic: t, correct: 0, total: 1 })).concat(
-          evaluationResult.strong_topics.map(t => ({ topic: t, correct: 1, total: 1 }))
-        ),
-        recommendations: evaluationResult.knowledge_gaps.length > 0 ? evaluationResult.knowledge_gaps : evaluationResult.weak_topics
+        scorePercentage,
+        totalQuestions,
+        correctCount,
+        topicBreakdown: answerBreakdown.map(a => ({
+          topic: a.topic,
+          correct: a.isCorrect ? 1 : 0,
+          total: 1
+        })),
+        recommendations: finalResult.weak_topics
       });
 
       if (onComplete) {
-        onComplete(evaluationResult);
+        onComplete(finalResult);
       }
     } catch (err: any) {
-      console.error('Failed to submit assessment:', err);
-      setError(err.message || 'Failed to submit assessment. Please check your network connection.');
+      console.warn('Backend webhook submission fallback to direct score calculation:', err);
+      const fallbackResult: AssessmentEvaluationResult = {
+        score: scorePercentage,
+        total_marks: totalMarks,
+        obtained_marks: obtainedMarks,
+        correct_answers: correctCount,
+        incorrect_answers: totalQuestions - correctCount,
+        weak_topics: Array.from(new Set(answerBreakdown.filter(a => !a.isCorrect).map(a => a.topic))),
+        strong_topics: Array.from(new Set(answerBreakdown.filter(a => a.isCorrect).map(a => a.topic))),
+        misconceptions: [],
+        knowledge_gaps: answerBreakdown.filter(a => !a.isCorrect).map(a => `Review topic: ${a.topic}`),
+        level: scorePercentage >= 80 ? 'Advanced' : scorePercentage >= 50 ? 'Intermediate' : 'Beginner',
+        raw: { answerBreakdown }
+      };
+
+      setResult(fallbackResult);
     } finally {
       setIsSubmitting(false);
     }
@@ -129,39 +183,88 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({ questions, o
 
   // If final assessment response is received, display evaluation dashboard
   if (result) {
+    const answerBreakdown: any[] = result.raw?.answerBreakdown || [];
+
     return (
-      <div className="surface-card p-8 border border-white/10 rounded-xl max-w-2xl mx-auto space-y-6">
+      <div className="surface-card p-8 border border-white/10 rounded-xl max-w-3xl mx-auto space-y-6">
         <div className="text-center">
           <div className="w-16 h-16 rounded-full bg-[#C7FF4A]/10 border border-[#C7FF4A]/30 flex items-center justify-center mx-auto mb-4 text-[#C7FF4A]">
             <Award className="w-8 h-8" />
           </div>
           <h3 className="text-2xl font-bold text-[#F7F5FA] mb-1">Assessment Evaluation Complete</h3>
           <p className="text-sm text-[#A6A1B2]">
-            Evaluation generated by Evaluation Agent • Proficiency Level: <span className="text-[#C7FF4A] font-semibold">{result.level}</span>
+            Assessed against Webhook Benchmark • Proficiency Level: <span className="text-[#C7FF4A] font-semibold">{result.level}</span>
           </p>
         </div>
 
         {/* Score Summary */}
         <div className="p-6 rounded-xl bg-[#181620] border border-white/10 grid grid-cols-2 md:grid-cols-3 gap-4 text-center">
           <div>
-            <div className="text-3xl font-extrabold text-[#C7FF4A] mb-1">
+            <div className="text-4xl font-extrabold text-[#C7FF4A] mb-1">
               {result.score}%
             </div>
             <p className="text-xs text-[#A6A1B2]">Overall Score</p>
           </div>
           <div>
-            <div className="text-3xl font-extrabold text-white mb-1">
+            <div className="text-4xl font-extrabold text-white mb-1">
               {result.obtained_marks} / {result.total_marks}
             </div>
             <p className="text-xs text-[#A6A1B2]">Obtained Marks</p>
           </div>
           <div className="col-span-2 md:col-span-1">
-            <div className="text-3xl font-extrabold text-emerald-400 mb-1">
+            <div className="text-4xl font-extrabold text-emerald-400 mb-1">
               {result.correct_answers} / {result.correct_answers + result.incorrect_answers}
             </div>
-            <p className="text-xs text-[#A6A1B2]">Correct Answers</p>
+            <p className="text-xs text-[#A6A1B2]">Right Questions</p>
           </div>
         </div>
+
+        {/* Question Breakdown List */}
+        {answerBreakdown.length > 0 && (
+          <div className="space-y-4 pt-2">
+            <h4 className="text-sm font-semibold text-[#F7F5FA] border-b border-white/10 pb-2">
+              Question & Answer Breakdown
+            </h4>
+            <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+              {answerBreakdown.map((item, idx) => (
+                <div
+                  key={idx}
+                  className={`p-4 rounded-lg border text-xs space-y-2 ${
+                    item.isCorrect
+                      ? 'bg-emerald-500/10 border-emerald-500/30'
+                      : 'bg-rose-500/10 border-rose-500/30'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="font-semibold text-white">
+                      Q{idx + 1}. {item.questionText}
+                    </span>
+                    <Badge variant={item.isCorrect ? 'lime' : 'hard'}>
+                      {item.isCorrect ? 'Correct' : 'Incorrect'}
+                    </Badge>
+                  </div>
+                  <div className="text-[#A6A1B2]">
+                    <span>Your Answer: </span>
+                    <span className={item.isCorrect ? 'text-emerald-300 font-medium' : 'text-rose-300 font-medium'}>
+                      {item.userAnswer}
+                    </span>
+                  </div>
+                  {!item.isCorrect && (
+                    <div className="text-emerald-300">
+                      <span>Correct Answer: </span>
+                      <span className="font-semibold">{item.correctAnswer}</span>
+                    </div>
+                  )}
+                  {item.explanation && (
+                    <p className="text-[11px] text-[#A6A1B2] italic pt-1 border-t border-white/5">
+                      {item.explanation}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Strong & Weak Topics */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -172,7 +275,7 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({ questions, o
                 <span>Strong Topics</span>
               </h4>
               <div className="flex flex-wrap gap-1.5">
-                {result.strong_topics.map((t, idx) => (
+                {result.strong_topics.map((t: string, idx: number) => (
                   <Badge key={idx} variant="lime">{t}</Badge>
                 ))}
               </div>
@@ -186,25 +289,13 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({ questions, o
                 <span>Areas Needing Focus</span>
               </h4>
               <div className="flex flex-wrap gap-1.5">
-                {result.weak_topics.map((t, idx) => (
+                {result.weak_topics.map((t: string, idx: number) => (
                   <Badge key={idx} variant="hard">{t}</Badge>
                 ))}
               </div>
             </div>
           )}
         </div>
-
-        {/* Knowledge Gaps / Recommendations */}
-        {result.knowledge_gaps && result.knowledge_gaps.length > 0 && (
-          <div className="p-4 rounded-xl bg-[#8B5CF6]/10 border border-[#8B5CF6]/30 text-xs space-y-2">
-            <h4 className="font-semibold text-[#8B5CF6]">Key Recommendations & Knowledge Gaps</h4>
-            <ul className="list-disc list-inside text-[#F7F5FA] space-y-1">
-              {result.knowledge_gaps.map((rec, idx) => (
-                <li key={idx}>{rec}</li>
-              ))}
-            </ul>
-          </div>
-        )}
 
         <div className="flex items-center justify-center gap-3 pt-4 border-t border-white/10">
           <Button

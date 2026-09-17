@@ -1,5 +1,5 @@
 import { parseAdaptiveLearningResponse } from '../../utils/adapters';
-import { AdaptiveLearningResult, PracticeAttempt } from '../../types';
+import { AdaptiveLearningResult, PracticeAttempt, Question } from '../../types';
 import { supabase } from '../supabase';
 
 const ADAPTIVE_LEARNING_WEBHOOK_URL =
@@ -150,8 +150,93 @@ export const adaptiveLearningService = {
       console.error('Error submitting assessment to webhook:', error);
       throw error;
     }
+  },
+
+  /**
+   * Triggers the Attend Assessment webhook and parses questions
+   */
+  fetchAssessmentQuestionsFromWebhook: async (): Promise<Question[]> => {
+    const WEBHOOK_URL = 'https://api.agents.snsihub.ai/webhook/fbe93af0-6a48-4500-8768-788623f218ca';
+    try {
+      const response = await fetch(WEBHOOK_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'attend_assessment',
+          message: 'Attend Assessment',
+          timestamp: new Date().toISOString()
+        })
+      });
+
+      if (!response.ok) {
+        console.warn(`Attend Assessment Webhook HTTP status ${response.status}`);
+      }
+
+      const contentType = response.headers.get('content-type');
+      let data: any;
+
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        try {
+          const cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+          data = JSON.parse(cleaned);
+        } catch {
+          data = { text };
+        }
+      }
+
+      console.log('ATTEND ASSESSMENT WEBHOOK RESPONSE:', data);
+      return parseQuestionsFromWebhook(data);
+    } catch (error) {
+      console.warn('Attend Assessment webhook connection offline, using fallback suite:', error);
+      return [];
+    }
   }
 };
+
+export function parseQuestionsFromWebhook(data: any): Question[] {
+  if (!data) return [];
+
+  const list = Array.isArray(data)
+    ? data
+    : Array.isArray(data.questions)
+    ? data.questions
+    : Array.isArray(data.data)
+    ? data.data
+    : Array.isArray(data.result)
+    ? data.result
+    : [];
+
+  if (list.length === 0) return [];
+
+  return list.map((item: any, idx: number) => {
+    const questionText = item.question || item.questionText || item.prompt || item.title || `Question ${idx + 1}`;
+    const rawOpts = Array.isArray(item.options) ? item.options : Array.isArray(item.choices) ? item.choices : [];
+    const options = rawOpts.map(String);
+
+    let correctAnswer = String(item.correctAnswer || item.correct_answer || item.answer || item.solution || (options[0] || ''));
+    if (typeof item.correct_option === 'number' && options[item.correct_option]) {
+      correctAnswer = options[item.correct_option];
+    } else if (/^\d+$/.test(correctAnswer) && options[parseInt(correctAnswer, 10)]) {
+      correctAnswer = options[parseInt(correctAnswer, 10)];
+    }
+
+    return {
+      id: String(item.id || item.question_id || `wh_q_${idx + 1}`),
+      topic: item.topic || item.subject || 'Core Engineering & Math',
+      difficulty: item.difficulty || (idx % 3 === 0 ? 'Easy' : idx % 3 === 1 ? 'Medium' : 'Hard'),
+      questionText,
+      options: options.length > 0 ? options : ['Option A', 'Option B', 'Option C', 'Option D'],
+      correctAnswer,
+      explanation: item.explanation || `Correct Solution: ${correctAnswer}`,
+      hint: item.hint
+    };
+  });
+}
 
 export function parseAssessmentEvaluationResponse(raw: any, totalQuestions: number = 10): AssessmentEvaluationResult {
   if (!raw || typeof raw !== 'object') {
