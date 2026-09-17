@@ -110,23 +110,71 @@ function parseChatWebhookResponse(
     return buildFallbackChatResponse(userMessageText, materialTitle);
   }
 
-  // Handle various text response keys returned by webhook / agent workflows
-  let textResponse = '';
+  // Step 1: If rawData is a JSON string, attempt to parse it first
+  let parsed = rawData;
   if (typeof rawData === 'string') {
-    textResponse = rawData;
-  } else {
-    textResponse =
-      rawData.output ||
-      rawData.text ||
-      rawData.response ||
-      rawData.message ||
-      rawData.reply ||
-      rawData.answer ||
-      (Array.isArray(rawData) ? rawData.map(r => r.output || r.text || JSON.stringify(r)).join('\n') : '');
+    const trimmed = rawData.trim();
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      try {
+        parsed = JSON.parse(trimmed);
+      } catch {
+        parsed = rawData;
+      }
+    }
   }
 
-  if (!textResponse && typeof rawData === 'object') {
-    textResponse = JSON.stringify(rawData);
+  // Helper to extract text from an object/string
+  const extractTextContent = (obj: any): string => {
+    if (obj === null || obj === undefined) return '';
+    if (typeof obj === 'string') return obj;
+    if (typeof obj === 'number' || typeof obj === 'boolean') return String(obj);
+
+    if (typeof obj === 'object') {
+      // Check _responseData / responseData keys explicitly
+      const resData = obj._responseData ?? obj.responseData ?? obj._RESPONSEDATA ?? obj.response_data;
+      if (resData !== undefined && resData !== null) {
+        if (typeof resData === 'string') {
+          // If _responseData is a JSON string, try parsing it
+          const resTrimmed = resData.trim();
+          if (resTrimmed.startsWith('{') || resTrimmed.startsWith('[')) {
+            try {
+              const innerParsed = JSON.parse(resTrimmed);
+              const innerText = extractTextContent(innerParsed);
+              if (innerText) return innerText;
+            } catch {
+              // Not JSON, return original string
+            }
+          }
+          return resData;
+        }
+        const innerText = extractTextContent(resData);
+        if (innerText) return innerText;
+      }
+
+      // Check standard response fields
+      if (obj.output && typeof obj.output === 'string') return obj.output;
+      if (obj.text && typeof obj.text === 'string') return obj.text;
+      if (obj.response && typeof obj.response === 'string') return obj.response;
+      if (obj.message && typeof obj.message === 'string') return obj.message;
+      if (obj.reply && typeof obj.reply === 'string') return obj.reply;
+      if (obj.answer && typeof obj.answer === 'string') return obj.answer;
+
+      if (obj.output) return extractTextContent(obj.output);
+      if (obj.text) return extractTextContent(obj.text);
+      if (obj.response) return extractTextContent(obj.response);
+
+      if (Array.isArray(obj)) {
+        return obj.map(item => extractTextContent(item)).filter(Boolean).join('\n');
+      }
+    }
+
+    return '';
+  };
+
+  let textResponse = extractTextContent(parsed);
+
+  if (!textResponse && typeof parsed === 'object') {
+    textResponse = JSON.stringify(parsed);
   }
 
   // Extract YouTube URL or Video ID

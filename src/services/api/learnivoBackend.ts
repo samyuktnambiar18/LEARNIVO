@@ -432,11 +432,12 @@ function extractObjectFromRaw(rawData: any): any {
 
   // Search candidate sub-objects first (such as rawData.result, rawData.data, rawData.output)
   const candidateFields = [
+    rawData._responseData,
+    rawData.responseData,
     rawData.result,
     rawData.data,
     rawData.output,
     rawData.response,
-    rawData.responseData,
     rawData._RESPONSEDATA?.output,
     rawData,
   ];
