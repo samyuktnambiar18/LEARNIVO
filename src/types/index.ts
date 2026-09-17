@@ -208,6 +208,27 @@ export interface MagicViewResult {
   errorMessage?: string;
 }
 
+export interface MagicViewNarrationStep {
+  number: number;
+  title: string;
+  explanation: string;
+}
+
+export interface MagicViewNarrationPayload {
+  question: string;
+  concept: string;
+  step: MagicViewNarrationStep;
+  visual_context: string;
+  key_takeaway: string;
+}
+
+export interface MagicViewNarrationResult {
+  success: boolean;
+  text?: string;
+  audioUrl?: string;
+  errorMessage?: string;
+}
+
 export interface AssessmentWebhookQuestion {
   question_number?: number;
   unit?: string;

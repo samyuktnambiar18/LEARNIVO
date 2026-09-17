@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, SkipBack, SkipForward, RotateCcw, Sparkles, CheckCircle2, ArrowRight, Layers, Info, Code, Image as ImageIcon, ExternalLink } from 'lucide-react';
-import { MagicViewData, MagicViewStep, MagicViewElement, MagicViewConnection } from '../../types';
+import { Play, Pause, SkipBack, SkipForward, RotateCcw, Sparkles, CheckCircle2, ArrowRight, Layers, Info, Code, Image as ImageIcon, ExternalLink, Loader2, Volume2, VolumeX, AlertTriangle } from 'lucide-react';
+import { MagicViewData, MagicViewStep, MagicViewElement, MagicViewConnection, MagicViewNarrationPayload } from '../../types';
+import { learnivoBackend } from '../../services/api/learnivoBackend';
 import { Button } from '../ui/Button';
 
 interface MagicViewRendererProps {
   data: MagicViewData;
 }
+
+type NarrationState = 'idle' | 'loading' | 'speaking' | 'paused' | 'finished';
 
 export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) => {
   // Ensure elements, connections, and steps are populated so canvas is NEVER empty
@@ -18,6 +21,13 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
   const [isPlaying, setIsPlaying] = useState(false);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
 
+  // Narration & Speech Synthesis state
+  const [narrationState, setNarrationState] = useState<NarrationState>('idle');
+  const [narrationError, setNarrationError] = useState<string | null>(null);
+
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const speechUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const currentNarrationDataRef = useRef<{ text?: string; audioUrl?: string } | null>(null);
   const playTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const activeStep: MagicViewStep | undefined = steps[currentStepIndex];
@@ -37,7 +47,27 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
     if (activeElem) activeElementIds.add(activeElem.id);
   }
 
-  // Auto-play timer
+  // Stop active narration & speech synthesis safely
+  const stopActiveNarration = () => {
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current = null;
+    }
+    speechUtteranceRef.current = null;
+  };
+
+  // Cleanup speech/audio on unmount
+  useEffect(() => {
+    return () => {
+      stopActiveNarration();
+    };
+  }, []);
+
+  // Auto-play step timer
   useEffect(() => {
     if (isPlaying && steps.length > 1) {
       playTimerRef.current = setInterval(() => {
@@ -58,8 +88,13 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
     };
   }, [isPlaying, steps.length]);
 
+  // Step change handlers — stop speech immediately and reset Play state
   const handleNext = () => {
     setIsPlaying(false);
+    stopActiveNarration();
+    setNarrationState('idle');
+    setNarrationError(null);
+    currentNarrationDataRef.current = null;
     if (currentStepIndex < steps.length - 1) {
       setCurrentStepIndex(currentStepIndex + 1);
     }
@@ -67,6 +102,10 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
 
   const handlePrev = () => {
     setIsPlaying(false);
+    stopActiveNarration();
+    setNarrationState('idle');
+    setNarrationError(null);
+    currentNarrationDataRef.current = null;
     if (currentStepIndex > 0) {
       setCurrentStepIndex(currentStepIndex - 1);
     }
@@ -74,15 +113,152 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
 
   const handleReset = () => {
     setIsPlaying(false);
+    stopActiveNarration();
+    setNarrationState('idle');
+    setNarrationError(null);
+    currentNarrationDataRef.current = null;
     setCurrentStepIndex(0);
     setSelectedElementId(null);
   };
 
-  const togglePlay = () => {
-    if (currentStepIndex >= steps.length - 1) {
-      setCurrentStepIndex(0);
+  // Plays given narration content (Audio URL or Speech Synthesis)
+  const playNarrationContent = (narrationData: { text?: string; audioUrl?: string }) => {
+    stopActiveNarration();
+
+    if (narrationData.audioUrl) {
+      try {
+        const audio = new Audio(narrationData.audioUrl);
+        audioRef.current = audio;
+        audio.onended = () => {
+          setNarrationState('finished');
+        };
+        audio.onerror = () => {
+          setNarrationState('idle');
+          setNarrationError("Unable to load audio narration. Please try again.");
+        };
+        audio.play().then(() => {
+          setNarrationState('speaking');
+        }).catch((err) => {
+          console.warn("Audio playback failed:", err);
+          setNarrationState('idle');
+          setNarrationError("Unable to load narration. Please try again.");
+        });
+        return;
+      } catch (e) {
+        console.warn("Audio initialization error:", e);
+      }
     }
-    setIsPlaying(!isPlaying);
+
+    if (narrationData.text && typeof window !== 'undefined' && window.speechSynthesis) {
+      try {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(narrationData.text);
+        utterance.rate = 0.95;
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
+
+        utterance.onend = () => {
+          setNarrationState('finished');
+        };
+        utterance.onerror = (e) => {
+          console.warn("Speech synthesis error:", e);
+          setNarrationState('idle');
+        };
+
+        speechUtteranceRef.current = utterance;
+        window.speechSynthesis.speak(utterance);
+        setNarrationState('speaking');
+        return;
+      } catch (e) {
+        console.warn("Speech synthesis initialization error:", e);
+      }
+    }
+
+    setNarrationState('idle');
+    setNarrationError("No narration available for this step.");
+  };
+
+  // Main PLAY button click handler with backend narration webhook integration
+  const handlePlayNarration = async () => {
+    // Prevent duplicate parallel requests
+    if (narrationState === 'loading') return;
+
+    // If currently speaking, PAUSE narration
+    if (narrationState === 'speaking') {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      } else if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.pause();
+      }
+      setNarrationState('paused');
+      return;
+    }
+
+    // If currently paused, RESUME narration without restarting
+    if (narrationState === 'paused') {
+      if (audioRef.current) {
+        audioRef.current.play().catch((err) => console.warn('Audio play failed on resume:', err));
+      } else if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.resume();
+      }
+      setNarrationState('speaking');
+      return;
+    }
+
+    // If idle or finished, fetch narration from backend webhook (or use cache if present)
+    setNarrationError(null);
+
+    if (currentNarrationDataRef.current) {
+      playNarrationContent(currentNarrationDataRef.current);
+      return;
+    }
+
+    setNarrationState('loading');
+    stopActiveNarration();
+
+    const activeElementsList = activeStep?.active_elements?.length
+      ? activeStep.active_elements
+      : elements.map(e => e.id);
+
+    const visualContext = activeElementsList.length
+      ? `Highlighting nodes: ${activeElementsList.join(', ')}`
+      : `Visual explanation diagram for ${data.concept || data.title}`;
+
+    const payload: MagicViewNarrationPayload = {
+      question: data.concept || data.title,
+      concept: data.concept || data.title,
+      step: {
+        number: activeStep ? activeStep.step_number : currentStepIndex + 1,
+        title: activeStep ? activeStep.title : `Step ${currentStepIndex + 1}`,
+        explanation: activeStep ? activeStep.description : data.summary,
+      },
+      visual_context: visualContext,
+      key_takeaway: data.key_takeaway || data.summary,
+    };
+
+    const result = await learnivoBackend.fetchMagicViewNarration(payload);
+
+    if (!result.success) {
+      setNarrationState('idle');
+      setNarrationError(result.errorMessage || "Unable to load narration. Please try again.");
+      return;
+    }
+
+    const narrationData = { text: result.text, audioUrl: result.audioUrl };
+    currentNarrationDataRef.current = narrationData;
+    playNarrationContent(narrationData);
+  };
+
+  // REPLAY button click handler
+  const handleReplayClick = () => {
+    setIsPlaying(false);
+    stopActiveNarration();
+    setNarrationError(null);
+    if (currentNarrationDataRef.current) {
+      playNarrationContent(currentNarrationDataRef.current);
+    } else {
+      handlePlayNarration();
+    }
   };
 
   const selectedElement = selectedElementId ? elementsMap[selectedElementId] : null;
@@ -276,7 +452,14 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
                     {steps.map((s, idx) => (
                       <button
                         key={idx}
-                        onClick={() => { setIsPlaying(false); setCurrentStepIndex(idx); }}
+                        onClick={() => {
+                          setIsPlaying(false);
+                          stopActiveNarration();
+                          setNarrationState('idle');
+                          setNarrationError(null);
+                          currentNarrationDataRef.current = null;
+                          setCurrentStepIndex(idx);
+                        }}
                         className={`h-2.5 rounded-full transition-all ${
                           idx === currentStepIndex
                             ? 'w-8 bg-[#C7FF4A] shadow-[0_0_8px_rgba(199,255,74,0.6)]'
@@ -295,61 +478,99 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
               </div>
             )}
 
-            {/* Animation Controls */}
-            {steps.length > 1 && (
-              <div className="flex items-center justify-between gap-2 p-3 bg-[#121118] rounded-xl border border-white/10">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handlePrev}
-                  disabled={currentStepIndex === 0}
-                  className="text-xs"
+            {/* Narration Error User-Friendly Notification */}
+            {narrationError && (
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center justify-between gap-2 shadow-sm">
+                <span className="flex items-center gap-1.5 font-medium">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                  {narrationError}
+                </span>
+                <button
+                  onClick={() => setNarrationError(null)}
+                  className="text-[10px] uppercase font-bold text-amber-400 hover:text-white transition-colors"
                 >
-                  <SkipBack className="w-3.5 h-3.5 mr-1" />
-                  Previous
-                </Button>
-
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={togglePlay}
-                  className="text-xs min-w-[105px]"
-                >
-                  {isPlaying ? (
-                    <>
-                      <Pause className="w-3.5 h-3.5 mr-1 fill-current" />
-                      Pause
-                    </>
-                  ) : (
-                    <>
-                      <Play className="w-3.5 h-3.5 mr-1 fill-current" />
-                      {currentStepIndex >= steps.length - 1 ? 'Replay' : 'Play'}
-                    </>
-                  )}
-                </Button>
-
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleNext}
-                  disabled={currentStepIndex === steps.length - 1}
-                  className="text-xs"
-                >
-                  Next
-                  <SkipForward className="w-3.5 h-3.5 ml-1" />
-                </Button>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleReset}
-                  title="Reset to step 1"
-                  className="px-2.5"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                </Button>
+                  Dismiss
+                </button>
               </div>
             )}
+
+            {/* Animation & Narration Audio Controls */}
+            <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-[#121118] rounded-xl border border-white/10">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handlePrev}
+                disabled={currentStepIndex === 0}
+                className="text-xs"
+                aria-label="Previous step"
+              >
+                <SkipBack className="w-3.5 h-3.5 mr-1" />
+                Previous
+              </Button>
+
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handlePlayNarration}
+                disabled={narrationState === 'loading'}
+                aria-label={
+                  narrationState === 'loading'
+                    ? 'Loading explanation'
+                    : narrationState === 'speaking'
+                    ? 'Pause explanation'
+                    : narrationState === 'paused'
+                    ? 'Resume explanation'
+                    : 'Play explanation'
+                }
+                className="text-xs min-w-[110px]"
+              >
+                {narrationState === 'loading' ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                    Loading...
+                  </>
+                ) : narrationState === 'speaking' ? (
+                  <>
+                    <Pause className="w-3.5 h-3.5 mr-1.5 fill-current" />
+                    Pause
+                  </>
+                ) : narrationState === 'paused' ? (
+                  <>
+                    <Play className="w-3.5 h-3.5 mr-1.5 fill-current" />
+                    Resume
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-3.5 h-3.5 mr-1.5 fill-current" />
+                    Play
+                  </>
+                )}
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleNext}
+                disabled={currentStepIndex === steps.length - 1}
+                className="text-xs"
+                aria-label="Next step"
+              >
+                Next
+                <SkipForward className="w-3.5 h-3.5 ml-1" />
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleReplayClick}
+                aria-label="Replay explanation"
+                title="Replay narration from start"
+                className="px-2.5 text-xs"
+              >
+                <RotateCcw className="w-3.5 h-3.5 mr-1" />
+                Replay
+              </Button>
+            </div>
           </div>
         </div>
 

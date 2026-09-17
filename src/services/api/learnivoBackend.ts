@@ -1,8 +1,12 @@
-import { MagicViewResult, MagicViewData, MagicViewElement, MagicViewConnection, MagicViewStep } from '../../types';
+import { MagicViewResult, MagicViewData, MagicViewElement, MagicViewConnection, MagicViewStep, MagicViewNarrationPayload, MagicViewNarrationResult } from '../../types';
 
 const MASTER_WEBHOOK_URL =
   import.meta.env.VITE_LEARNIVO_MASTER_WEBHOOK_URL ||
   'https://api.agents.snsihub.ai/webhook/learnivo-magic-view';
+
+const NARRATION_WEBHOOK_URL =
+  import.meta.env.VITE_LEARNIVO_NARRATION_WEBHOOK_URL ||
+  'https://api.agents.snsihub.ai/webhook/dd34aeb0-d5bb-4359-88d4-769db877a911';
 
 export const learnivoBackend = {
   /**
@@ -76,7 +80,167 @@ export const learnivoBackend = {
       };
     }
   },
+
+  /**
+   * Fetches step narration text or audio URL from the narration backend webhook.
+   */
+  fetchMagicViewNarration: async (
+    payload: MagicViewNarrationPayload
+  ): Promise<MagicViewNarrationResult> => {
+    try {
+      console.log("NARRATION WEBHOOK REQUEST PAYLOAD:", payload);
+
+      const response = await fetch(NARRATION_WEBHOOK_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        console.warn(`Narration webhook returned HTTP status ${response.status}`);
+        return {
+          success: false,
+          errorMessage: "Unable to load narration. Please try again."
+        };
+      }
+
+      const contentType = response.headers.get('content-type');
+      let rawData: any;
+
+      if (contentType && contentType.includes('application/json')) {
+        rawData = await response.json();
+      } else {
+        const text = await response.text();
+        rawData = { text };
+      }
+
+      console.log("NARRATION RAW RESPONSE:", rawData);
+
+      // Check if response contains an audio URL
+      const audioUrl = extractAudioUrlFromRaw(rawData);
+      if (audioUrl) {
+        return {
+          success: true,
+          audioUrl,
+        };
+      }
+
+      // Otherwise extract useful narration text
+      const text = extractNarrationTextFromRaw(rawData);
+      if (text && text.trim()) {
+        return {
+          success: true,
+          text: cleanTextForSpeech(text),
+        };
+      }
+
+      return {
+        success: false,
+        errorMessage: "No narration available for this step."
+      };
+
+    } catch (error) {
+      console.error("NARRATION FETCH ERROR:", error);
+      return {
+        success: false,
+        errorMessage: "Unable to load narration. Please try again."
+      };
+    }
+  },
 };
+
+/**
+ * Helper to safely extract audio URL from varied webhook response structures
+ */
+function extractAudioUrlFromRaw(rawData: any): string | undefined {
+  if (!rawData) return undefined;
+
+  if (typeof rawData === 'string') {
+    const trimmed = rawData.trim();
+    if (trimmed.startsWith('data:audio/') || (trimmed.startsWith('http') && (trimmed.endsWith('.mp3') || trimmed.endsWith('.wav') || trimmed.endsWith('.ogg')))) {
+      return trimmed;
+    }
+  }
+
+  if (typeof rawData === 'object') {
+    const candidates = [
+      rawData.audioUrl,
+      rawData.audio_url,
+      rawData.audio,
+      rawData.soundUrl,
+      rawData.sound_url,
+      rawData.result?.audioUrl,
+      rawData.result?.audio,
+      rawData.data?.audioUrl,
+      rawData.data?.audio,
+    ];
+    for (const c of candidates) {
+      if (typeof c === 'string' && c.trim()) {
+        return c.trim();
+      }
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Helper to safely extract narration text from varied webhook response structures
+ */
+function extractNarrationTextFromRaw(rawData: any): string | undefined {
+  if (!rawData) return undefined;
+
+  if (typeof rawData === 'string') {
+    return rawData;
+  }
+
+  if (typeof rawData === 'object') {
+    const candidateFields = [
+      rawData.narration,
+      rawData.text,
+      rawData.response,
+      rawData.message,
+      rawData.output,
+      rawData.explanation,
+      rawData.content,
+      rawData.result?.text || rawData.result?.response || rawData.result?.message || rawData.result?.narration || rawData.result,
+      rawData.data?.text || rawData.data?.response || rawData.data?.message || rawData.data?.narration || rawData.data,
+    ];
+
+    for (const candidate of candidateFields) {
+      if (!candidate) continue;
+      if (typeof candidate === 'string' && candidate.trim()) {
+        return candidate.trim();
+      }
+      if (typeof candidate === 'object' && candidate !== null) {
+        const subText = candidate.text || candidate.response || candidate.message || candidate.narration || candidate.explanation || candidate.output;
+        if (typeof subText === 'string' && subText.trim()) {
+          return subText.trim();
+        }
+      }
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Strips HTML tags, Markdown formatting, and JSON noise for clean Text-to-Speech
+ */
+function cleanTextForSpeech(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/<[^>]*>/g, ' ') // Strip HTML tags
+    .replace(/```[\s\S]*?```/g, ' ') // Strip code blocks
+    .replace(/`([^`]+)`/g, '$1') // Strip inline code backticks
+    .replace(/[*_~#]/g, '') // Strip Markdown symbols (*, _, ~, #)
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Strip Markdown links
+    .replace(/[{}"\\]/g, ' ') // Strip JSON curly braces, quotes, backslashes
+    .replace(/\s+/g, ' ') // Clean redundant whitespace
+    .trim();
+}
 
 /**
  * Robustly normalizes raw webhook payload into MagicViewResult
