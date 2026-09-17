@@ -1,6 +1,28 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, SkipBack, SkipForward, RotateCcw, Sparkles, CheckCircle2, ArrowRight, Layers, Info, Code, Image as ImageIcon, ExternalLink, Loader2, Volume2, VolumeX, AlertTriangle } from 'lucide-react';
-import { MagicViewData, MagicViewStep, MagicViewElement, MagicViewConnection, MagicViewNarrationPayload } from '../../types';
+import {
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  RotateCcw,
+  Sparkles,
+  CheckCircle2,
+  Layers,
+  Info,
+  Code,
+  Image as ImageIcon,
+  ExternalLink,
+  Loader2,
+  AlertTriangle,
+  Lightbulb
+} from 'lucide-react';
+import {
+  MagicViewData,
+  MagicViewStep,
+  MagicViewElement,
+  MagicViewConnection,
+  MagicViewNarrationPayload
+} from '../../types';
 import { learnivoBackend } from '../../services/api/learnivoBackend';
 import { Button } from '../ui/Button';
 
@@ -10,9 +32,58 @@ interface MagicViewRendererProps {
 
 type NarrationState = 'idle' | 'loading' | 'speaking' | 'paused' | 'finished';
 
+// SVG Text Wrapper - Splits text into lines for multi-line SVG rendering with ZERO truncation
+function wrapSvgText(text: string, maxCharsPerLine: number = 22): string[] {
+  if (!text) return [];
+  const words = text.trim().split(/\s+/);
+  const lines: string[] = [];
+  let currentLine = '';
+
+  words.forEach((word) => {
+    if ((currentLine + ' ' + word).trim().length <= maxCharsPerLine) {
+      currentLine = (currentLine + ' ' + word).trim();
+    } else {
+      if (currentLine) lines.push(currentLine);
+      currentLine = word;
+    }
+  });
+  if (currentLine) lines.push(currentLine);
+  return lines;
+}
+
+// Calculate precise box boundary intersection point for SVG arrow lines
+function getBoxIntersection(
+  fromX: number,
+  fromY: number,
+  boxWidth: number,
+  boxHeight: number,
+  toX: number,
+  toY: number
+): { x: number; y: number } {
+  const dx = toX - fromX;
+  const dy = toY - fromY;
+
+  if (dx === 0 && dy === 0) return { x: fromX, y: fromY };
+
+  const halfW = boxWidth / 2 + 6;
+  const halfH = boxHeight / 2 + 6;
+
+  const scaleX = Math.abs(dx) > 0 ? halfW / Math.abs(dx) : Infinity;
+  const scaleY = Math.abs(dy) > 0 ? halfH / Math.abs(dy) : Infinity;
+
+  const scale = Math.min(scaleX, scaleY);
+
+  return {
+    x: fromX + dx * scale,
+    y: fromY + dy * scale,
+  };
+}
+
 export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) => {
-  // Ensure elements, connections, and steps are populated so canvas is NEVER empty
-  const { elements, connections, steps } = deriveVisualElementsAndSteps(data);
+  // Ensure elements, connections, and steps are derived & intelligently laid out
+  const { rawElements, rawConnections, steps } = deriveVisualElementsAndSteps(data);
+  const elements = layoutElementsIntelligently(rawElements, rawConnections, data.visual_type);
+  const connections = rawConnections;
 
   const [activeTab, setActiveTab] = useState<'diagram' | 'html' | 'image'>(() =>
     data.html ? 'html' : data.imageUrl ? 'image' : 'diagram'
@@ -32,7 +103,7 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
 
   const activeStep: MagicViewStep | undefined = steps[currentStepIndex];
 
-  // Map element IDs for O(1) SVG lookup
+  // Map element IDs for lookup
   const elementsMap: Record<string, MagicViewElement> = {};
   elements.forEach((e) => {
     elementsMap[e.id] = e;
@@ -60,7 +131,6 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
     speechUtteranceRef.current = null;
   };
 
-  // Cleanup speech/audio on unmount
   useEffect(() => {
     return () => {
       stopActiveNarration();
@@ -78,7 +148,7 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
           }
           return prev + 1;
         });
-      }, 3000);
+      }, 3500);
     } else if (playTimerRef.current) {
       clearInterval(playTimerRef.current);
     }
@@ -88,7 +158,6 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
     };
   }, [isPlaying, steps.length]);
 
-  // Step change handlers — stop speech immediately and reset Play state
   const handleNext = () => {
     setIsPlaying(false);
     stopActiveNarration();
@@ -121,7 +190,6 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
     setSelectedElementId(null);
   };
 
-  // Plays given narration content (Audio URL or Speech Synthesis)
   const playNarrationContent = (narrationData: { text?: string; audioUrl?: string }) => {
     stopActiveNarration();
 
@@ -134,18 +202,21 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
         };
         audio.onerror = () => {
           setNarrationState('idle');
-          setNarrationError("Unable to load audio narration. Please try again.");
+          setNarrationError('Unable to load audio narration. Please try again.');
         };
-        audio.play().then(() => {
-          setNarrationState('speaking');
-        }).catch((err) => {
-          console.warn("Audio playback failed:", err);
-          setNarrationState('idle');
-          setNarrationError("Unable to load narration. Please try again.");
-        });
+        audio
+          .play()
+          .then(() => {
+            setNarrationState('speaking');
+          })
+          .catch((err) => {
+            console.warn('Audio playback failed:', err);
+            setNarrationState('idle');
+            setNarrationError('Unable to load narration. Please try again.');
+          });
         return;
       } catch (e) {
-        console.warn("Audio initialization error:", e);
+        console.warn('Audio initialization error:', e);
       }
     }
 
@@ -161,7 +232,7 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
           setNarrationState('finished');
         };
         utterance.onerror = (e) => {
-          console.warn("Speech synthesis error:", e);
+          console.warn('Speech synthesis error:', e);
           setNarrationState('idle');
         };
 
@@ -170,20 +241,17 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
         setNarrationState('speaking');
         return;
       } catch (e) {
-        console.warn("Speech synthesis initialization error:", e);
+        console.warn('Speech synthesis initialization error:', e);
       }
     }
 
     setNarrationState('idle');
-    setNarrationError("No narration available for this step.");
+    setNarrationError('No narration available for this step.');
   };
 
-  // Main PLAY button click handler with backend narration webhook integration
   const handlePlayNarration = async () => {
-    // Prevent duplicate parallel requests
     if (narrationState === 'loading') return;
 
-    // If currently speaking, PAUSE narration
     if (narrationState === 'speaking') {
       if (audioRef.current) {
         audioRef.current.pause();
@@ -194,7 +262,6 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
       return;
     }
 
-    // If currently paused, RESUME narration without restarting
     if (narrationState === 'paused') {
       if (audioRef.current) {
         audioRef.current.play().catch((err) => console.warn('Audio play failed on resume:', err));
@@ -205,7 +272,6 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
       return;
     }
 
-    // If idle or finished, fetch narration from backend webhook (or use cache if present)
     setNarrationError(null);
 
     if (currentNarrationDataRef.current) {
@@ -218,7 +284,7 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
 
     const activeElementsList = activeStep?.active_elements?.length
       ? activeStep.active_elements
-      : elements.map(e => e.id);
+      : elements.map((e) => e.id);
 
     const visualContext = activeElementsList.length
       ? `Highlighting nodes: ${activeElementsList.join(', ')}`
@@ -250,7 +316,7 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
 
     if (!result.success) {
       setNarrationState('idle');
-      setNarrationError(result.errorMessage || "Unable to load explanation. Please try again.");
+      setNarrationError(result.errorMessage || 'Unable to load explanation. Please try again.');
       return;
     }
 
@@ -259,7 +325,6 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
     playNarrationContent(narrationData);
   };
 
-  // REPLAY button click handler
   const handleReplayClick = () => {
     setIsPlaying(false);
     stopActiveNarration();
@@ -274,11 +339,11 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
   const selectedElement = selectedElementId ? elementsMap[selectedElementId] : null;
 
   return (
-    <div className="surface-card border border-[#C7FF4A]/40 rounded-2xl overflow-hidden shadow-2xl bg-[#0B0A0F] text-[#F7F5FA] my-4 transition-all">
+    <div className="surface-card border border-[#C7FF4A]/40 rounded-2xl overflow-hidden shadow-2xl bg-[#0B0A0F] text-[#F7F5FA] my-4 transition-all w-full">
       {/* Header Banner */}
       <div className="p-4 sm:p-5 bg-gradient-to-r from-[#181620] via-[#121118] to-[#181620] border-b border-white/10 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-[#C7FF4A]/15 border border-[#C7FF4A]/40 flex items-center justify-center text-[#C7FF4A] shadow-[0_0_14px_rgba(199,255,74,0.3)]">
+          <div className="w-10 h-10 rounded-xl bg-[#C7FF4A]/15 border border-[#C7FF4A]/40 flex items-center justify-center text-[#C7FF4A] shadow-[0_0_16px_rgba(199,255,74,0.35)]">
             <Sparkles className="w-5 h-5 animate-pulse" />
           </div>
           <div>
@@ -290,14 +355,14 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
                 {(data.visual_type || 'diagram').replace(/_/g, ' ')}
               </span>
             </div>
-            <h3 className="text-base sm:text-lg font-bold text-[#F7F5FA] mt-0.5">
+            <h3 className="text-base sm:text-xl font-extrabold text-[#F7F5FA] mt-0.5">
               {data.title || data.concept}
             </h3>
           </div>
         </div>
 
         {steps.length > 1 && (
-          <div className="flex items-center gap-2 bg-[#181620] px-3 py-1.5 rounded-lg border border-white/10 text-xs font-semibold text-[#A6A1B2]">
+          <div className="flex items-center gap-2 bg-[#181620] px-3.5 py-1.5 rounded-lg border border-white/10 text-xs font-semibold text-[#A6A1B2]">
             <span>Step {currentStepIndex + 1} of {steps.length}</span>
           </div>
         )}
@@ -307,17 +372,17 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
       <div className="p-4 sm:p-6 space-y-6">
         {/* Summary Description */}
         {data.summary && (
-          <p className="text-xs sm:text-sm text-[#A6A1B2] leading-relaxed bg-[#121118] p-3.5 rounded-xl border border-white/5">
+          <p className="text-xs sm:text-sm text-[#A6A1B2] leading-relaxed bg-[#121118] p-4 rounded-xl border border-white/5">
             {data.summary}
           </p>
         )}
 
-        {/* View Switcher Tabs (if HTML or Image is present alongside vector specs) */}
+        {/* View Switcher Tabs (if HTML or Image is present) */}
         {(data.html || data.imageUrl) && (
           <div className="flex items-center gap-2 border-b border-white/10 pb-3">
             <button
               onClick={() => setActiveTab('diagram')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
                 activeTab === 'diagram'
                   ? 'bg-[#C7FF4A] text-[#0B0A0F] font-bold shadow-sm'
                   : 'bg-[#181620] text-[#A6A1B2] hover:text-[#F7F5FA] border border-white/10'
@@ -329,7 +394,7 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
             {data.html && (
               <button
                 onClick={() => setActiveTab('html')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
                   activeTab === 'html'
                     ? 'bg-[#C7FF4A] text-[#0B0A0F] font-bold shadow-sm'
                     : 'bg-[#181620] text-[#A6A1B2] hover:text-[#F7F5FA] border border-white/10'
@@ -342,7 +407,7 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
             {data.imageUrl && (
               <button
                 onClick={() => setActiveTab('image')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
                   activeTab === 'image'
                     ? 'bg-[#C7FF4A] text-[#0B0A0F] font-bold shadow-sm'
                     : 'bg-[#181620] text-[#A6A1B2] hover:text-[#F7F5FA] border border-white/10'
@@ -355,18 +420,18 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
           </div>
         )}
 
-        {/* Responsive Visualization & Explanation Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Main Visual Display (Left 7 Columns) */}
-          <div className="lg:col-span-7 bg-[#121118] p-3 sm:p-4 rounded-xl border border-white/10 flex flex-col justify-center min-h-[350px] relative overflow-hidden">
+        {/* Responsive Visualization (62% width on desktop) & Explanation (38% width) */}
+        <div className="flex flex-col lg:flex-row gap-6 items-stretch">
+          {/* Main Visual Display (Left Panel ~62% Width, min-height 520px) */}
+          <div className="w-full lg:w-[62%] bg-[#121118] p-4 sm:p-5 rounded-xl border border-white/10 flex flex-col justify-center min-h-[520px] sm:min-h-[580px] relative overflow-hidden flex-shrink-0">
             {activeTab === 'html' && data.html ? (
-              <div className="w-full h-full flex flex-col rounded-lg overflow-hidden">
+              <div className="w-full h-full flex flex-col rounded-lg overflow-hidden min-h-[500px]">
                 <div className="p-2 bg-[#181620] border-b border-white/10 flex items-center justify-between text-xs text-[#A6A1B2] mb-2">
                   <span className="font-semibold text-[#C7FF4A] flex items-center gap-1.5">
                     <Code className="w-3.5 h-3.5" /> HTML Preview
                   </span>
                 </div>
-                <div className="w-full h-[400px] bg-white rounded-lg overflow-hidden relative">
+                <div className="w-full h-[520px] bg-white rounded-lg overflow-hidden relative">
                   <iframe
                     srcDoc={data.html}
                     title="Magic View HTML Code Preview"
@@ -376,7 +441,7 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
                 </div>
               </div>
             ) : activeTab === 'image' && data.imageUrl ? (
-              <div className="w-full h-full flex flex-col items-center justify-center">
+              <div className="w-full h-full flex flex-col items-center justify-center min-h-[500px]">
                 <div className="p-2 w-full flex items-center justify-between text-xs text-[#A6A1B2] mb-2">
                   <span className="font-semibold text-[#C7FF4A] flex items-center gap-1.5">
                     <ImageIcon className="w-3.5 h-3.5" /> Image Visual Preview
@@ -392,8 +457,8 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
                 </div>
                 <img
                   src={data.imageUrl}
-                  alt={data.title || "Magic View Image Preview"}
-                  className="max-h-[420px] w-auto max-w-full object-contain rounded-lg border border-white/10 shadow-lg"
+                  alt={data.title || 'Magic View Image Preview'}
+                  className="max-h-[520px] w-auto max-w-full object-contain rounded-lg border border-white/10 shadow-lg"
                 />
               </div>
             ) : (
@@ -408,33 +473,38 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
             )}
           </div>
 
-          {/* Steps & Controls Panel (Right 5 Columns) */}
-          <div className="lg:col-span-5 flex flex-col justify-between space-y-4">
+          {/* Explanation & Controls Panel (Right Panel ~38% Width) */}
+          <div className="w-full lg:w-[38%] flex flex-col justify-between space-y-4">
             {/* Active Step Card */}
             {activeStep ? (
-              <div className="bg-[#181620] p-5 rounded-xl border border-white/10 flex-1 flex flex-col justify-between">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2.5">
-                    <span className="w-7 h-7 rounded-full bg-[#C7FF4A] text-[#0B0A0F] font-bold text-xs flex items-center justify-center shadow-md">
+              <div className="bg-[#181620] p-5 sm:p-6 rounded-xl border border-white/10 flex-1 flex flex-col justify-between max-h-[620px] overflow-y-auto">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 border-b border-white/10 pb-3">
+                    <span className="w-8 h-8 rounded-full bg-[#C7FF4A] text-[#0B0A0F] font-extrabold text-sm flex items-center justify-center shadow-md shadow-[#C7FF4A]/20 flex-shrink-0">
                       {activeStep.step_number}
                     </span>
-                    <h4 className="text-sm font-bold text-[#F7F5FA]">
+                    <h4 className="text-base font-bold text-[#F7F5FA] leading-snug">
                       {activeStep.title}
                     </h4>
                   </div>
 
-                  <p className="text-xs sm:text-sm text-[#A6A1B2] leading-relaxed">
-                    {activeStep.description}
-                  </p>
+                  <div className="space-y-2">
+                    <h5 className="text-xs font-semibold text-[#C7FF4A] uppercase tracking-wider flex items-center gap-1">
+                      <Lightbulb className="w-3.5 h-3.5 text-[#C7FF4A]" /> What is happening?
+                    </h5>
+                    <p className="text-xs sm:text-sm text-[#A6A1B2] leading-relaxed">
+                      {activeStep.description}
+                    </p>
+                  </div>
                 </div>
 
                 {/* Clicked Element Details Inspector */}
                 {selectedElement && (
-                  <div className="mt-4 p-3 rounded-lg bg-[#121118] border border-[#8B5CF6]/40 text-xs space-y-1">
+                  <div className="mt-4 p-3.5 rounded-lg bg-[#121118] border border-[#8B5CF6]/40 text-xs space-y-1.5">
                     <div className="flex items-center justify-between text-[#8B5CF6] font-bold">
-                      <span className="flex items-center gap-1">
+                      <span className="flex items-center gap-1.5">
                         <Info className="w-3.5 h-3.5" />
-                        Selected Element: {selectedElement.label}
+                        {selectedElement.label}
                       </span>
                       <button
                         onClick={() => setSelectedElementId(null)}
@@ -444,12 +514,12 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
                       </button>
                     </div>
                     {selectedElement.value && (
-                      <p className="text-[11px] text-[#F7F5FA] font-mono">
+                      <p className="text-[11px] text-[#F7F5FA] font-mono bg-white/5 p-1 rounded">
                         Value: {selectedElement.value}
                       </p>
                     )}
                     {selectedElement.details && (
-                      <p className="text-[11px] text-[#A6A1B2]">
+                      <p className="text-[11px] text-[#A6A1B2] leading-relaxed">
                         {selectedElement.details}
                       </p>
                     )}
@@ -458,7 +528,7 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
 
                 {/* Steps Selector Progress Bar */}
                 {steps.length > 1 && (
-                  <div className="flex items-center gap-1.5 mt-4 pt-3 border-t border-white/10">
+                  <div className="flex items-center gap-2 mt-6 pt-4 border-t border-white/10">
                     {steps.map((s, idx) => (
                       <button
                         key={idx}
@@ -470,10 +540,10 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
                           currentNarrationDataRef.current = null;
                           setCurrentStepIndex(idx);
                         }}
-                        className={`h-2.5 rounded-full transition-all ${
+                        className={`h-3 rounded-full transition-all ${
                           idx === currentStepIndex
-                            ? 'w-8 bg-[#C7FF4A] shadow-[0_0_8px_rgba(199,255,74,0.6)]'
-                            : 'w-2.5 bg-white/20 hover:bg-white/40'
+                            ? 'w-10 bg-[#C7FF4A] shadow-[0_0_10px_rgba(199,255,74,0.7)]'
+                            : 'w-3 bg-white/20 hover:bg-white/40'
                         }`}
                         title={`Jump to Step ${s.step_number}: ${s.title}`}
                       />
@@ -482,13 +552,13 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
                 )}
               </div>
             ) : (
-              <div className="bg-[#181620] p-5 rounded-xl border border-white/10 text-center py-8">
+              <div className="bg-[#181620] p-6 rounded-xl border border-white/10 text-center py-10">
                 <Layers className="w-8 h-8 text-[#A6A1B2] mx-auto mb-2" />
                 <p className="text-xs text-[#A6A1B2]">Visualizing concept elements...</p>
               </div>
             )}
 
-            {/* Narration Error User-Friendly Notification */}
+            {/* Narration Error Notification */}
             {narrationError && (
               <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center justify-between gap-2 shadow-sm">
                 <span className="flex items-center gap-1.5 font-medium">
@@ -504,14 +574,14 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
               </div>
             )}
 
-            {/* Animation & Narration Audio Controls */}
-            <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-[#121118] rounded-xl border border-white/10">
+            {/* Animation & Narration Controls */}
+            <div className="flex items-center justify-between gap-2 p-3 bg-[#121118] rounded-xl border border-white/10">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={handlePrev}
                 disabled={currentStepIndex === 0}
-                className="text-xs"
+                className="text-xs px-2.5"
                 aria-label="Previous step"
               >
                 <SkipBack className="w-3.5 h-3.5 mr-1" />
@@ -562,7 +632,7 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
                 size="sm"
                 onClick={handleNext}
                 disabled={currentStepIndex === steps.length - 1}
-                className="text-xs"
+                className="text-xs px-2.5"
                 aria-label="Next step"
               >
                 Next
@@ -586,7 +656,7 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
 
         {/* Key Takeaway Banner */}
         {data.key_takeaway && (
-          <div className="p-4 rounded-xl bg-gradient-to-r from-[#C7FF4A]/10 via-[#181620] to-[#8B5CF6]/10 border border-[#C7FF4A]/30 flex items-start gap-3">
+          <div className="p-4 sm:p-5 rounded-xl bg-gradient-to-r from-[#C7FF4A]/10 via-[#181620] to-[#8B5CF6]/10 border border-[#C7FF4A]/30 flex items-start gap-3">
             <CheckCircle2 className="w-5 h-5 text-[#C7FF4A] flex-shrink-0 mt-0.5" />
             <div>
               <h5 className="text-xs font-bold text-[#C7FF4A] uppercase tracking-wider mb-1">
@@ -604,9 +674,8 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
 };
 
 // ============================================================================
-// SVG CANVAS COMPONENT (1200 x 700 viewBox)
-// Renders elements (box, circle, text, formula, arrow, image_placeholder, node)
-// Renders connections with directional SVG arrows & labels
+// SVG CANVAS COMPONENT (Generous 1400 x 850 Canvas Area)
+// Renders large, un-truncated nodes & edge-connected directional arrows
 // ============================================================================
 
 interface MagicSvgCanvasProps {
@@ -628,30 +697,18 @@ const MagicSvgCanvas: React.FC<MagicSvgCanvasProps> = ({
 }) => {
   return (
     <svg
-      viewBox="0 0 1200 700"
-      className="w-full h-auto max-h-[550px] aspect-[1200/700] rounded-xl overflow-visible select-none transition-all"
+      viewBox="0 0 1400 850"
+      className="w-full h-full min-h-[500px] rounded-xl overflow-visible select-none transition-all"
     >
       <defs>
-        {/* SVG Arrowhead Marker Definitions */}
-        <marker
-          id="arrow-forward"
-          viewBox="0 0 10 10"
-          refX="8"
-          refY="5"
-          markerWidth="7"
-          markerHeight="7"
-          orient="auto-start-reverse"
-        >
-          <path d="M 0 1 L 10 5 L 0 9 z" fill="#C7FF4A" />
-        </marker>
-
+        {/* Arrowhead Marker Definitions */}
         <marker
           id="arrow-active"
           viewBox="0 0 10 10"
           refX="8"
           refY="5"
-          markerWidth="8"
-          markerHeight="8"
+          markerWidth="9"
+          markerHeight="9"
           orient="auto-start-reverse"
         >
           <path d="M 0 1 L 10 5 L 0 9 z" fill="#C7FF4A" />
@@ -662,42 +719,56 @@ const MagicSvgCanvas: React.FC<MagicSvgCanvasProps> = ({
           viewBox="0 0 10 10"
           refX="8"
           refY="5"
-          markerWidth="6"
-          markerHeight="6"
+          markerWidth="7.5"
+          markerHeight="7.5"
           orient="auto-start-reverse"
         >
           <path d="M 0 1 L 10 5 L 0 9 z" fill="#8B5CF6" />
         </marker>
 
         {/* Glow Filters */}
-        <filter id="glow-lime" x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur stdDeviation="6" result="blur" />
+        <filter id="glow-lime-lg" x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="8" result="blur" />
+          <feComposite in="SourceGraphic" in2="blur" operator="over" />
+        </filter>
+
+        <filter id="glow-purple-lg" x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="8" result="blur" />
           <feComposite in="SourceGraphic" in2="blur" operator="over" />
         </filter>
       </defs>
 
-      {/* Grid Pattern Background */}
-      <pattern id="grid-pattern" width="40" height="40" patternUnits="userSpaceOnUse">
-        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+      {/* Grid Background Pattern */}
+      <pattern id="grid-pattern-lg" width="50" height="50" patternUnits="userSpaceOnUse">
+        <path d="M 50 0 L 0 0 0 50" fill="none" stroke="rgba(255,255,255,0.035)" strokeWidth="1" />
       </pattern>
-      <rect width="1200" height="700" fill="url(#grid-pattern)" rx="12" />
+      <rect width="1400" height="850" fill="url(#grid-pattern-lg)" rx="14" />
 
       {/* RENDER CONNECTIONS */}
       {connections.map((conn, idx) => {
         const fromElem = elementsMap[conn.from];
         const toElem = elementsMap[conn.to];
 
-        // Ignore invalid connection referencing missing elements safely without crashing
         if (!fromElem || !toElem) return null;
 
-        const x1 = Math.max(60, Math.min(1140, fromElem.position?.x ?? 200));
-        const y1 = Math.max(50, Math.min(650, fromElem.position?.y ?? 200));
-        const x2 = Math.max(60, Math.min(1140, toElem.position?.x ?? 600));
-        const y2 = Math.max(50, Math.min(650, toElem.position?.y ?? 200));
+        const fromX = fromElem.position?.x ?? 400;
+        const fromY = fromElem.position?.y ?? 200;
+        const toX = toElem.position?.x ?? 800;
+        const toY = toElem.position?.y ?? 200;
+
+        // Determine node dimensions for box boundary collision
+        const fromW = fromElem.width || 270;
+        const fromH = fromElem.height || 105;
+        const toW = toElem.width || 270;
+        const toH = toElem.height || 105;
+
+        // Calculate exact start & end points at node borders
+        const startPt = getBoxIntersection(fromX, fromY, fromW, fromH, toX, toY);
+        const endPt = getBoxIntersection(toX, toY, toW, toH, fromX, fromY);
 
         const isConnActive = activeElementIds.has(fromElem.id) || activeElementIds.has(toElem.id);
-        const midX = (x1 + x2) / 2;
-        const midY = (y1 + y2) / 2;
+        const midX = (startPt.x + endPt.x) / 2;
+        const midY = (startPt.y + endPt.y) / 2;
 
         const isDashed = conn.type === 'dashed';
         const markerId = isConnActive ? 'url(#arrow-active)' : 'url(#arrow-neutral)';
@@ -707,15 +778,15 @@ const MagicSvgCanvas: React.FC<MagicSvgCanvasProps> = ({
           <g key={`conn_${idx}_${conn.from}_${conn.to}`}>
             {/* SVG Connector Line */}
             <line
-              x1={x1}
-              y1={y1}
-              x2={x2}
-              y2={y2}
+              x1={startPt.x}
+              y1={startPt.y}
+              x2={endPt.x}
+              y2={endPt.y}
               stroke={strokeColor}
-              strokeWidth={isConnActive ? 3.5 : 2}
-              strokeDasharray={isDashed ? '6 6' : undefined}
+              strokeWidth={isConnActive ? 4 : 2.5}
+              strokeDasharray={isDashed ? '8 8' : undefined}
               markerEnd={conn.direction !== 'none' ? markerId : undefined}
-              opacity={isConnActive ? 1 : 0.65}
+              opacity={isConnActive ? 1 : 0.75}
               className="transition-all duration-300"
             />
 
@@ -723,21 +794,21 @@ const MagicSvgCanvas: React.FC<MagicSvgCanvasProps> = ({
             {conn.label && (
               <g transform={`translate(${midX}, ${midY})`}>
                 <rect
-                  x={-(conn.label.length * 4.5 + 8)}
-                  y="-11"
-                  width={conn.label.length * 9 + 16}
-                  height="22"
-                  rx="6"
+                  x={-(conn.label.length * 4.8 + 12)}
+                  y="-14"
+                  width={conn.label.length * 9.6 + 24}
+                  height="28"
+                  rx="8"
                   fill="#121118"
                   stroke={strokeColor}
-                  strokeWidth="1"
+                  strokeWidth="1.5"
                 />
                 <text
                   x="0"
                   y="4"
                   fill="#F7F5FA"
-                  fontSize="11"
-                  fontWeight="600"
+                  fontSize="13"
+                  fontWeight="700"
                   textAnchor="middle"
                 >
                   {conn.label}
@@ -750,29 +821,45 @@ const MagicSvgCanvas: React.FC<MagicSvgCanvasProps> = ({
 
       {/* RENDER ELEMENTS */}
       {elements.map((elem) => {
-        const x = Math.max(80, Math.min(1120, elem.position?.x ?? 300));
-        const y = Math.max(60, Math.min(640, elem.position?.y ?? 300));
+        const x = elem.position?.x ?? 700;
+        const y = elem.position?.y ?? 400;
         const isActive = activeElementIds.has(elem.id);
         const isSelected = selectedElementId === elem.id;
 
         const elemType = (elem.type || 'box').toLowerCase();
 
+        // Wrap label lines for ZERO truncation
+        const labelLines = wrapSvgText(elem.label || 'Node Element', 22);
+
+        // Dynamic height based on title lines + value
+        const boxWidth = elem.width || 270;
+        const lineCount = labelLines.length || 1;
+        const hasValue = Boolean(elem.value);
+        const boxHeight = elem.height || Math.max(105, 60 + lineCount * 22 + (hasValue ? 24 : 0));
+
+        const halfW = boxWidth / 2;
+        const halfH = boxHeight / 2;
+
         return (
           <g
             key={elem.id}
-            transform={`translate(${x}, ${y})`}
+            transform={`translate(${x}, ${y}) scale(${isActive || isSelected ? 1.05 : 1})`}
             onClick={() => onSelectElement(elem.id)}
             className="cursor-pointer group transition-all duration-300"
           >
             {/* Active Glow Ring */}
             {(isActive || isSelected) && (
-              <circle
-                r="70"
+              <rect
+                x={-halfW - 8}
+                y={-halfH - 8}
+                width={boxWidth + 16}
+                height={boxHeight + 16}
+                rx="18"
                 fill="none"
                 stroke={isSelected ? '#8B5CF6' : '#C7FF4A'}
-                strokeWidth="2"
-                strokeDasharray="4 4"
-                className="animate-spin-slow opacity-60"
+                strokeWidth="2.5"
+                strokeDasharray="6 6"
+                className="animate-spin-slow opacity-80"
               />
             )}
 
@@ -780,23 +867,38 @@ const MagicSvgCanvas: React.FC<MagicSvgCanvasProps> = ({
             {elemType === 'circle' && (
               <g>
                 <circle
-                  r="45"
-                  fill={isActive ? 'rgba(199, 255, 74, 0.2)' : 'rgba(24, 22, 32, 0.9)'}
-                  stroke={isActive ? '#C7FF4A' : elem.color || 'rgba(255,255,255,0.25)'}
-                  strokeWidth={isActive ? 3.5 : 2}
-                  filter={isActive ? 'url(#glow-lime)' : undefined}
+                  r={Math.max(65, halfW * 0.55)}
+                  fill={isActive ? 'rgba(199, 255, 74, 0.22)' : 'rgba(24, 22, 32, 0.94)'}
+                  stroke={isActive ? '#C7FF4A' : elem.color || 'rgba(255,255,255,0.3)'}
+                  strokeWidth={isActive ? 4 : 2.5}
+                  filter={isActive ? 'url(#glow-lime-lg)' : undefined}
                 />
-                <text
-                  y={elem.value ? '-6' : '4'}
-                  fill="#F7F5FA"
-                  fontSize="14"
-                  fontWeight="bold"
-                  textAnchor="middle"
-                >
-                  {truncateText(elem.label, 12)}
-                </text>
+                {labelLines.map((line, lIdx) => {
+                  const startY = -(labelLines.length - 1) * 11 + (hasValue ? -8 : 0);
+                  return (
+                    <text
+                      key={lIdx}
+                      x="0"
+                      y={startY + lIdx * 22}
+                      fill={isActive ? '#C7FF4A' : '#F7F5FA'}
+                      fontSize="16"
+                      fontWeight="bold"
+                      textAnchor="middle"
+                    >
+                      {line}
+                    </text>
+                  );
+                })}
                 {elem.value && (
-                  <text y="14" fill="#C7FF4A" fontSize="11" fontWeight="600" textAnchor="middle" fontFamily="monospace">
+                  <text
+                    x="0"
+                    y={(labelLines.length - 1) * 11 + 22}
+                    fill="#C7FF4A"
+                    fontSize="13"
+                    fontWeight="600"
+                    textAnchor="middle"
+                    fontFamily="monospace"
+                  >
                     {elem.value}
                   </text>
                 )}
@@ -807,95 +909,120 @@ const MagicSvgCanvas: React.FC<MagicSvgCanvasProps> = ({
             {elemType === 'formula' && (
               <g>
                 <rect
-                  x="-85"
-                  y="-35"
-                  width="170"
-                  height="70"
-                  rx="10"
-                  fill={isActive ? 'rgba(139, 92, 246, 0.25)' : 'rgba(18, 17, 24, 0.95)'}
+                  x={-halfW}
+                  y={-halfH}
+                  width={boxWidth}
+                  height={boxHeight}
+                  rx="14"
+                  fill={isActive ? 'rgba(139, 92, 246, 0.28)' : 'rgba(18, 17, 24, 0.95)'}
                   stroke={isActive ? '#C7FF4A' : '#8B5CF6'}
-                  strokeWidth={isActive ? 3 : 2}
+                  strokeWidth={isActive ? 3.5 : 2.5}
+                  filter={isActive ? 'url(#glow-purple-lg)' : undefined}
                 />
-                <text y="-8" fill="#C7FF4A" fontSize="11" fontWeight="bold" textAnchor="middle">
-                  {truncateText(elem.label, 18)}
-                </text>
-                <text y="14" fill="#F7F5FA" fontSize="15" fontWeight="bold" textAnchor="middle" fontFamily="serif" fontStyle="italic">
+                {labelLines.map((line, lIdx) => {
+                  const startY = -halfH + 28;
+                  return (
+                    <text
+                      key={lIdx}
+                      x="0"
+                      y={startY + lIdx * 20}
+                      fill="#C7FF4A"
+                      fontSize="14"
+                      fontWeight="bold"
+                      textAnchor="middle"
+                    >
+                      {line}
+                    </text>
+                  );
+                })}
+                <text
+                  x="0"
+                  y={halfH - 18}
+                  fill="#F7F5FA"
+                  fontSize="17"
+                  fontWeight="bold"
+                  textAnchor="middle"
+                  fontFamily="serif"
+                  fontStyle="italic"
+                >
                   {elem.value || elem.label}
                 </text>
               </g>
             )}
 
-            {/* TYPE 3: TEXT */}
+            {/* TYPE 3: TEXT / PILL */}
             {elemType === 'text' && (
               <g>
                 <rect
-                  x="-75"
-                  y="-22"
-                  width="150"
-                  height="44"
-                  rx="22"
-                  fill={isActive ? '#C7FF4A' : 'rgba(24, 22, 32, 0.9)'}
-                  stroke={isActive ? '#FFFFFF' : 'rgba(255,255,255,0.2)'}
-                  strokeWidth="2"
+                  x={-halfW}
+                  y={-halfH}
+                  width={boxWidth}
+                  height={boxHeight}
+                  rx={halfH}
+                  fill={isActive ? '#C7FF4A' : 'rgba(24, 22, 32, 0.94)'}
+                  stroke={isActive ? '#FFFFFF' : 'rgba(255,255,255,0.3)'}
+                  strokeWidth="2.5"
                 />
-                <text
-                  y="5"
-                  fill={isActive ? '#0B0A0F' : '#F7F5FA'}
-                  fontSize="13"
-                  fontWeight="bold"
-                  textAnchor="middle"
-                >
-                  {truncateText(elem.label, 16)}
-                </text>
+                {labelLines.map((line, lIdx) => {
+                  const startY = -(labelLines.length - 1) * 10;
+                  return (
+                    <text
+                      key={lIdx}
+                      x="0"
+                      y={startY + lIdx * 20 + 4}
+                      fill={isActive ? '#0B0A0F' : '#F7F5FA'}
+                      fontSize="15"
+                      fontWeight="bold"
+                      textAnchor="middle"
+                    >
+                      {line}
+                    </text>
+                  );
+                })}
               </g>
             )}
 
-            {/* TYPE 4: IMAGE PLACEHOLDER */}
-            {elemType === 'image_placeholder' && (
+            {/* TYPE 4: BOX / NODE / DEFAULT */}
+            {(elemType === 'box' || elemType === 'node' || elemType === 'arrow' || elemType === 'image_placeholder') && (
               <g>
                 <rect
-                  x="-75"
-                  y="-45"
-                  width="150"
-                  height="90"
-                  rx="10"
-                  fill="rgba(18, 17, 24, 0.9)"
-                  stroke={isActive ? '#C7FF4A' : '#A6A1B2'}
-                  strokeWidth="2"
-                  strokeDasharray="4 4"
+                  x={-halfW}
+                  y={-halfH}
+                  width={boxWidth}
+                  height={boxHeight}
+                  rx="14"
+                  fill={isActive ? 'rgba(199, 255, 74, 0.2)' : 'rgba(24, 22, 32, 0.95)'}
+                  stroke={isActive ? '#C7FF4A' : elem.color || 'rgba(255,255,255,0.3)'}
+                  strokeWidth={isActive ? 3.5 : 2.5}
+                  filter={isActive ? 'url(#glow-lime-lg)' : undefined}
                 />
-                <text y="-10" fill="#A6A1B2" fontSize="18" textAnchor="middle">🖼️</text>
-                <text y="16" fill="#F7F5FA" fontSize="11" fontWeight="bold" textAnchor="middle">
-                  {truncateText(elem.label, 16)}
-                </text>
-              </g>
-            )}
-
-            {/* TYPE 5: BOX / NODE / DEFAULT */}
-            {(elemType === 'box' || elemType === 'node' || elemType === 'arrow') && (
-              <g>
-                <rect
-                  x="-75"
-                  y="-35"
-                  width="150"
-                  height="70"
-                  rx="12"
-                  fill={isActive ? 'rgba(199, 255, 74, 0.18)' : 'rgba(24, 22, 32, 0.92)'}
-                  stroke={isActive ? '#C7FF4A' : elem.color || 'rgba(255,255,255,0.25)'}
-                  strokeWidth={isActive ? 3 : 2}
-                  filter={isActive ? 'url(#glow-lime)' : undefined}
-                />
-                <text
-                  y={elem.value ? '-8' : '4'}
-                  fill={isActive ? '#C7FF4A' : '#F7F5FA'}
-                  fontSize="13"
-                  fontWeight="bold"
-                  textAnchor="middle"
-                >
-                  {truncateText(elem.label, 16)}
-                </text>
+                {labelLines.map((line, lIdx) => {
+                  // Vertically center lines in node box
+                  const startY = -halfH + 32 + (hasValue ? 0 : (boxHeight - 64 - labelLines.length * 22) / 2);
+                  return (
+                    <text
+                      key={lIdx}
+                      x="0"
+                      y={startY + lIdx * 22}
+                      fill={isActive ? '#C7FF4A' : '#F7F5FA'}
+                      fontSize="17"
+                      fontWeight="bold"
+                      textAnchor="middle"
+                    >
+                      {line}
+                    </text>
+                  );
+                })}
                 {elem.value && (
-                  <text y="14" fill="#F7F5FA" fontSize="12" fontWeight="500" textAnchor="middle" fontFamily="monospace">
+                  <text
+                    x="0"
+                    y={halfH - 18}
+                    fill="#F7F5FA"
+                    fontSize="13"
+                    fontWeight="500"
+                    textAnchor="middle"
+                    fontFamily="monospace"
+                  >
                     {elem.value}
                   </text>
                 )}
@@ -909,21 +1036,142 @@ const MagicSvgCanvas: React.FC<MagicSvgCanvasProps> = ({
 };
 
 /**
- * Ensures visual elements and steps are derived if the backend response contains empty arrays,
- * preventing empty visualization canvas state under all query conditions.
+ * Intelligent Layout engine: Rescales or computes spacious coordinates for nodes so flowcharts
+ * fill the generous 1400x850 visual canvas cleanly without overlap or tiny clumping.
+ */
+function layoutElementsIntelligently(
+  elements: MagicViewElement[],
+  connections: MagicViewConnection[],
+  visualType: string = 'diagram'
+): MagicViewElement[] {
+  if (elements.length === 0) return elements;
+
+  const vType = visualType.toLowerCase();
+
+  let minX = Infinity,
+    maxX = -Infinity,
+    minY = Infinity,
+    maxY = -Infinity;
+  let hasValidPositions = true;
+
+  elements.forEach((e) => {
+    if (!e.position || typeof e.position.x !== 'number' || typeof e.position.y !== 'number') {
+      hasValidPositions = false;
+    } else {
+      minX = Math.min(minX, e.position.x);
+      maxX = Math.max(maxX, e.position.x);
+      minY = Math.min(minY, e.position.y);
+      maxY = Math.max(maxY, e.position.y);
+    }
+  });
+
+  const widthSpan = maxX - minX;
+  const heightSpan = maxY - minY;
+
+  // If positions missing or clumped in tiny area (< 200px), generate fresh spacious coordinates
+  if (!hasValidPositions || (elements.length > 1 && widthSpan < 200 && heightSpan < 200)) {
+    const total = elements.length;
+
+    const isCycle = vType.includes('cycle') || vType.includes('loop');
+    const isHorizontal = vType.includes('horizontal') || vType.includes('timeline') || vType.includes('pipeline');
+    const isComparison = vType.includes('compare') || vType.includes('versus') || (total === 4 && connections.length >= 2);
+
+    if (isCycle && total >= 3) {
+      const centerX = 700;
+      const centerY = 420;
+      const radius = Math.min(320, 220 + total * 15);
+
+      return elements.map((elem, i) => {
+        const angle = (i * 2 * Math.PI) / total - Math.PI / 2;
+        return {
+          ...elem,
+          position: {
+            x: Math.round(centerX + radius * Math.cos(angle)),
+            y: Math.round(centerY + radius * Math.sin(angle)),
+          },
+        };
+      });
+    } else if (isHorizontal) {
+      const spacingX = Math.min(340, Math.max(270, 1100 / (total || 1)));
+      const startX = Math.max(220, (1400 - spacingX * (total - 1)) / 2);
+
+      return elements.map((elem, i) => ({
+        ...elem,
+        position: {
+          x: Math.round(startX + i * spacingX),
+          y: 420,
+        },
+      }));
+    } else if (isComparison && total >= 4) {
+      const col1X = 420;
+      const col2X = 980;
+      const rowHeight = 170;
+      const startY = 180;
+
+      return elements.map((elem, i) => ({
+        ...elem,
+        position: {
+          x: i % 2 === 0 ? col1X : col2X,
+          y: startY + Math.floor(i / 2) * rowHeight,
+        },
+      }));
+    } else {
+      // Default Vertical Flow (Top to Bottom) centered at X=700
+      const rowHeight = Math.min(160, Math.max(130, 680 / (total || 1)));
+      const startY = Math.max(130, (850 - rowHeight * (total - 1)) / 2);
+
+      return elements.map((elem, i) => ({
+        ...elem,
+        position: {
+          x: 700,
+          y: Math.round(startY + i * rowHeight),
+        },
+      }));
+    }
+  }
+
+  // If positions exist but are constrained to a small box (e.g. 0-800 x 0-500), stretch them generously
+  if (minX !== Infinity && maxX !== minX && (widthSpan < 950 || heightSpan < 500)) {
+    const targetMinX = 250;
+    const targetMaxX = 1150;
+    const targetMinY = 140;
+    const targetMaxY = 710;
+
+    return elements.map((elem) => {
+      const origX = elem.position!.x;
+      const origY = elem.position!.y;
+
+      const normX = widthSpan > 0 ? (origX - minX) / widthSpan : 0.5;
+      const normY = heightSpan > 0 ? (origY - minY) / heightSpan : 0.5;
+
+      return {
+        ...elem,
+        position: {
+          x: Math.round(targetMinX + normX * (targetMaxX - targetMinX)),
+          y: Math.round(targetMinY + normY * (targetMaxY - targetMinY)),
+        },
+      };
+    });
+  }
+
+  return elements;
+}
+
+/**
+ * Ensures visual elements and steps are derived if the backend response contains empty arrays.
  */
 function deriveVisualElementsAndSteps(data: MagicViewData): {
-  elements: MagicViewElement[];
-  connections: MagicViewConnection[];
+  rawElements: MagicViewElement[];
+  rawConnections: MagicViewConnection[];
   steps: MagicViewStep[];
 } {
-  let elements = [...(data.elements || [])];
-  let connections = [...(data.connections || [])];
+  let rawElements = [...(data.elements || [])];
+  let rawConnections = [...(data.connections || [])];
   let steps = [...(data.steps || [])];
 
-  if (elements.length > 0) {
+  if (rawElements.length > 0) {
     if (steps.length === 0) {
-      steps = elements.map((elem, idx) => ({
+      steps = rawElements.map((elem, idx) => ({
         step_number: idx + 1,
         title: elem.label,
         description: elem.details || data.summary || `Step ${idx + 1} of ${data.concept} visual explanation.`,
@@ -931,79 +1179,70 @@ function deriveVisualElementsAndSteps(data: MagicViewData): {
         highlight_color: '#C7FF4A',
       }));
     }
-    return { elements, connections, steps };
+    return { rawElements, rawConnections, steps };
   }
 
   const queryLower = (data.concept || data.title || '').toLowerCase();
 
-  // Case A: Matrix / Math Grid
   if (queryLower.includes('matrix') || (data.visual_type && data.visual_type.includes('math'))) {
-    elements = [
-      { id: 'm_val1', label: 'Row 1: [ 1  2 ]', type: 'formula', position: { x: 350, y: 230 }, value: '[ 1   2 ]', details: 'Top row entries' },
-      { id: 'm_val2', label: 'Row 2: [ 3  4 ]', type: 'formula', position: { x: 350, y: 430 }, value: '[ 3   4 ]', details: 'Bottom row entries' },
-      { id: 'm_rows', label: 'ROWS (Horizontal)', type: 'box', position: { x: 800, y: 230 }, color: '#C7FF4A', details: 'Horizontal dimension m' },
-      { id: 'm_cols', label: 'COLUMNS (Vertical)', type: 'box', position: { x: 800, y: 430 }, color: '#8B5CF6', details: 'Vertical dimension n' },
+    rawElements = [
+      { id: 'm_val1', label: 'Row 1: [ 1  2 ]', type: 'formula', position: { x: 420, y: 280 }, value: '[ 1   2 ]', details: 'Top row entries' },
+      { id: 'm_val2', label: 'Row 2: [ 3  4 ]', type: 'formula', position: { x: 420, y: 550 }, value: '[ 3   4 ]', details: 'Bottom row entries' },
+      { id: 'm_rows', label: 'ROWS (Horizontal)', type: 'box', position: { x: 980, y: 280 }, color: '#C7FF4A', details: 'Horizontal dimension m' },
+      { id: 'm_cols', label: 'COLUMNS (Vertical)', type: 'box', position: { x: 980, y: 550 }, color: '#8B5CF6', details: 'Vertical dimension n' },
     ];
-    connections = [
+    rawConnections = [
       { from: 'm_val1', to: 'm_rows', label: 'Row 1', direction: 'forward', type: 'arrow' },
       { from: 'm_val2', to: 'm_cols', label: 'Col 1 & 2', direction: 'forward', type: 'arrow' },
     ];
-  }
-  // Case B: Water Cycle / Process
-  else if (queryLower.includes('water') || queryLower.includes('cycle') || (data.visual_type && data.visual_type.includes('cycle'))) {
-    elements = [
-      { id: 'evap', label: 'Evaporation', type: 'circle', position: { x: 300, y: 460 }, value: 'Heat → Vapor', details: 'Solar heat transforms surface water into vapor' },
-      { id: 'cond', label: 'Condensation', type: 'circle', position: { x: 600, y: 180 }, value: 'Cloud Formation', details: 'Cooling vapor condenses into clouds' },
-      { id: 'prec', label: 'Precipitation', type: 'circle', position: { x: 900, y: 460 }, value: 'Rain / Snow', details: 'Condensed moisture falls to earth' },
+  } else if (queryLower.includes('water') || queryLower.includes('cycle') || (data.visual_type && data.visual_type.includes('cycle'))) {
+    rawElements = [
+      { id: 'evap', label: 'Evaporation', type: 'circle', position: { x: 380, y: 550 }, value: 'Heat → Vapor', details: 'Solar heat transforms surface water into vapor' },
+      { id: 'cond', label: 'Condensation', type: 'circle', position: { x: 700, y: 200 }, value: 'Cloud Formation', details: 'Cooling vapor condenses into clouds' },
+      { id: 'prec', label: 'Precipitation', type: 'circle', position: { x: 1020, y: 550 }, value: 'Rain / Snow', details: 'Condensed moisture falls to earth' },
     ];
-    connections = [
+    rawConnections = [
       { from: 'evap', to: 'cond', label: 'Rises', direction: 'forward', type: 'arrow' },
       { from: 'cond', to: 'prec', label: 'Falls', direction: 'forward', type: 'arrow' },
       { from: 'prec', to: 'evap', label: 'Collection', direction: 'forward', type: 'arrow' },
     ];
-  }
-  // Case C: Binary Search / Algorithm
-  else if (queryLower.includes('binary') || queryLower.includes('search') || (data.visual_type && data.visual_type.includes('algorithm'))) {
-    elements = [
-      { id: 'arr_l', label: 'Left Pointer (0)', type: 'box', position: { x: 250, y: 320 }, value: 'Val: 2', details: 'Lower search index' },
-      { id: 'arr_m', label: 'Middle (Mid)', type: 'circle', position: { x: 600, y: 320 }, value: 'Val: 10', color: '#C7FF4A', details: 'Target compared with middle element' },
-      { id: 'arr_r', label: 'Right Pointer (N-1)', type: 'box', position: { x: 950, y: 320 }, value: 'Val: 25', details: 'Upper search index' },
+  } else if (queryLower.includes('binary') || queryLower.includes('search') || (data.visual_type && data.visual_type.includes('algorithm'))) {
+    rawElements = [
+      { id: 'arr_l', label: 'Left Pointer (0)', type: 'box', position: { x: 300, y: 420 }, value: 'Val: 2', details: 'Lower search index' },
+      { id: 'arr_m', label: 'Middle (Mid)', type: 'circle', position: { x: 700, y: 420 }, value: 'Val: 10', color: '#C7FF4A', details: 'Target compared with middle element' },
+      { id: 'arr_r', label: 'Right Pointer (N-1)', type: 'box', position: { x: 1100, y: 420 }, value: 'Val: 25', details: 'Upper search index' },
     ];
-    connections = [
+    rawConnections = [
       { from: 'arr_l', to: 'arr_m', label: 'Target > Mid', direction: 'forward', type: 'arrow' },
       { from: 'arr_m', to: 'arr_r', label: 'Search Right', direction: 'forward', type: 'arrow' },
     ];
-  }
-  // Case D: Derive from steps if steps array has items
-  else if (steps.length > 0) {
-    elements = steps.map((s, idx) => ({
+  } else if (steps.length > 0) {
+    rawElements = steps.map((s, idx) => ({
       id: `derived_step_${idx + 1}`,
       label: s.title || `Step ${idx + 1}`,
       type: idx % 2 === 0 ? 'box' : 'circle',
-      position: { x: 250 + (idx % 3) * 350, y: 220 + Math.floor(idx / 3) * 220 },
+      position: { x: 700, y: 150 + idx * 150 },
       details: s.description,
     }));
-    connections = elements.slice(0, -1).map((e, idx) => ({
+    rawConnections = rawElements.slice(0, -1).map((e, idx) => ({
       from: e.id,
-      to: elements[idx + 1].id,
+      to: rawElements[idx + 1].id,
       label: `Step ${idx + 1} → ${idx + 2}`,
       direction: 'forward',
       type: 'arrow',
     }));
-  }
-  // Case E: Default fallback so canvas is NEVER blank
-  else {
-    elements = [
-      { id: 'n_concept', label: data.concept || 'Target Concept', type: 'circle', position: { x: 350, y: 320 }, value: data.visual_type },
-      { id: 'n_summary', label: 'Core Mechanism', type: 'box', position: { x: 850, y: 320 }, color: '#C7FF4A', details: data.summary },
+  } else {
+    rawElements = [
+      { id: 'n_concept', label: data.concept || 'Target Concept', type: 'circle', position: { x: 420, y: 420 }, value: data.visual_type },
+      { id: 'n_summary', label: 'Core Mechanism', type: 'box', position: { x: 980, y: 420 }, color: '#C7FF4A', details: data.summary },
     ];
-    connections = [
-      { from: 'n_concept', to: 'node_summary', label: 'Mechanism', direction: 'forward', type: 'arrow' },
+    rawConnections = [
+      { from: 'n_concept', to: 'n_summary', label: 'Mechanism', direction: 'forward', type: 'arrow' },
     ];
   }
 
   if (steps.length === 0) {
-    steps = elements.map((elem, idx) => ({
+    steps = rawElements.map((elem, idx) => ({
       step_number: idx + 1,
       title: elem.label,
       description: elem.details || data.summary || `Step ${idx + 1} of ${data.concept} visual explanation.`,
@@ -1012,10 +1251,5 @@ function deriveVisualElementsAndSteps(data: MagicViewData): {
     }));
   }
 
-  return { elements, connections, steps };
-}
-
-function truncateText(str: string, maxLen: number): string {
-  if (!str) return '';
-  return str.length > maxLen ? str.slice(0, maxLen - 1) + '…' : str;
+  return { rawElements, rawConnections, steps };
 }
