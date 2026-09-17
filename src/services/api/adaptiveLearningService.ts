@@ -451,6 +451,83 @@ export function findQuestionsContainer(raw: any): any {
   return null;
 }
 
+export function extractOptions(q: any): NormalizedAssessmentOption[] {
+  const optionsList: NormalizedAssessmentOption[] = [];
+  const keys = ['A', 'B', 'C', 'D', 'E', 'F'];
+
+  const addOpt = (key: string, text: any) => {
+    if (text !== undefined && text !== null && String(text).trim().length > 0) {
+      optionsList.push({
+        key: String(key).trim().toUpperCase(),
+        text: String(text).trim()
+      });
+    }
+  };
+
+  const optsContainer = q?.options || q?.choices || q?.answers || q?.optionList || q?.questionOptions;
+
+  if (Array.isArray(optsContainer) && optsContainer.length > 0) {
+    optsContainer.forEach((item: any, idx: number) => {
+      if (typeof item === 'string' || typeof item === 'number') {
+        addOpt(keys[idx] || String(idx + 1), item);
+      } else if (item && typeof item === 'object') {
+        const textVal = item.text || item.option || item.value || item.content || item.label || item.description || item.answer || item.choice;
+        const keyVal = item.key || item.id || item.letter || item.label || keys[idx] || String(idx + 1);
+        if (textVal) {
+          addOpt(keyVal, textVal);
+        } else {
+          const entries = Object.entries(item);
+          if (entries.length > 0) {
+            addOpt(entries[0][0], entries[0][1]);
+          }
+        }
+      }
+    });
+  } else if (optsContainer && typeof optsContainer === 'object') {
+    Object.entries(optsContainer).forEach(([k, v]) => {
+      let normKey = String(k).trim().toUpperCase();
+      if (normKey === '1' || normKey === 'OPTION1' || normKey === 'OPTION_1') normKey = 'A';
+      if (normKey === '2' || normKey === 'OPTION2' || normKey === 'OPTION_2') normKey = 'B';
+      if (normKey === '3' || normKey === 'OPTION3' || normKey === 'OPTION_3') normKey = 'C';
+      if (normKey === '4' || normKey === 'OPTION4' || normKey === 'OPTION_4') normKey = 'D';
+
+      addOpt(normKey, v);
+    });
+  }
+
+  if (optionsList.length === 0 && q && typeof q === 'object') {
+    if (q.A || q.a) addOpt('A', q.A || q.a);
+    if (q.B || q.b) addOpt('B', q.B || q.b);
+    if (q.C || q.c) addOpt('C', q.C || q.c);
+    if (q.D || q.d) addOpt('D', q.D || q.d);
+
+    if (q.optionA || q.option_a) addOpt('A', q.optionA || q.option_a);
+    if (q.optionB || q.option_b) addOpt('B', q.optionB || q.option_b);
+    if (q.optionC || q.option_c) addOpt('C', q.optionC || q.option_c);
+    if (q.optionD || q.option_d) addOpt('D', q.optionD || q.option_d);
+
+    if (q.option1 || q.option_1) addOpt('A', q.option1 || q.option_1);
+    if (q.option2 || q.option_2) addOpt('B', q.option2 || q.option_2);
+    if (q.option3 || q.option_3) addOpt('C', q.option3 || q.option_3);
+    if (q.option4 || q.option_4) addOpt('D', q.option4 || q.option_4);
+
+    if (q.choice1 || q.choiceA) addOpt('A', q.choice1 || q.choiceA);
+    if (q.choice2 || q.choiceB) addOpt('B', q.choice2 || q.choiceB);
+    if (q.choice3 || q.choiceC) addOpt('C', q.choice3 || q.choiceC);
+    if (q.choice4 || q.choiceD) addOpt('D', q.choice4 || q.choiceD);
+  }
+
+  optionsList.forEach(opt => {
+    if (opt.key === '1') opt.key = 'A';
+    if (opt.key === '2') opt.key = 'B';
+    if (opt.key === '3') opt.key = 'C';
+    if (opt.key === '4') opt.key = 'D';
+  });
+
+  optionsList.sort((a, b) => a.key.localeCompare(b.key));
+  return optionsList;
+}
+
 export function parseAssessmentPayload(rawData: any): AssessmentSuiteData | null {
   if (!rawData) return null;
 
@@ -472,35 +549,7 @@ export function parseAssessmentPayload(rawData: any): AssessmentSuiteData | null
     const difficulty = String(q.difficulty || 'Medium');
     const questionText = String(q.question || q.questionText || q.prompt || `Question ${qNum}`);
 
-    const optionsList: NormalizedAssessmentOption[] = [];
-
-    if (q.options && typeof q.options === 'object' && !Array.isArray(q.options)) {
-      Object.entries(q.options).forEach(([k, v]) => {
-        if (v !== undefined && v !== null) {
-          optionsList.push({
-            key: String(k).trim().toUpperCase(),
-            text: String(v).trim()
-          });
-        }
-      });
-    } else if (Array.isArray(q.options)) {
-      const keys = ['A', 'B', 'C', 'D', 'E', 'F'];
-      q.options.forEach((optText: any, optIdx: number) => {
-        optionsList.push({
-          key: keys[optIdx] || String(optIdx + 1),
-          text: String(optText).trim()
-        });
-      });
-    } else {
-      optionsList.push(
-        { key: 'A', text: 'Option A' },
-        { key: 'B', text: 'Option B' },
-        { key: 'C', text: 'Option C' },
-        { key: 'D', text: 'Option D' }
-      );
-    }
-
-    optionsList.sort((a, b) => a.key.localeCompare(b.key));
+    const optionsList = extractOptions(q);
 
     let correctAnswerKey = String(q.correct_answer || q.correctAnswer || q.answer || 'A').trim();
 
