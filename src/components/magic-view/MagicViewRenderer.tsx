@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, SkipBack, SkipForward, RotateCcw, Sparkles, CheckCircle2, ArrowRight, Layers, Info } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, RotateCcw, Sparkles, CheckCircle2, ArrowRight, Layers, Info, Code, Image as ImageIcon, ExternalLink } from 'lucide-react';
 import { MagicViewData, MagicViewStep, MagicViewElement, MagicViewConnection } from '../../types';
 import { Button } from '../ui/Button';
 
@@ -11,6 +11,9 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
   // Ensure elements, connections, and steps are populated so canvas is NEVER empty
   const { elements, connections, steps } = deriveVisualElementsAndSteps(data);
 
+  const [activeTab, setActiveTab] = useState<'diagram' | 'html' | 'image'>(() =>
+    data.html ? 'html' : data.imageUrl ? 'image' : 'diagram'
+  );
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
@@ -123,18 +126,100 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
           </p>
         )}
 
+        {/* View Switcher Tabs (if HTML or Image is present alongside vector specs) */}
+        {(data.html || data.imageUrl) && (
+          <div className="flex items-center gap-2 border-b border-white/10 pb-3">
+            <button
+              onClick={() => setActiveTab('diagram')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                activeTab === 'diagram'
+                  ? 'bg-[#C7FF4A] text-[#0B0A0F] font-bold shadow-sm'
+                  : 'bg-[#181620] text-[#A6A1B2] hover:text-[#F7F5FA] border border-white/10'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>Diagram View</span>
+            </button>
+            {data.html && (
+              <button
+                onClick={() => setActiveTab('html')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                  activeTab === 'html'
+                    ? 'bg-[#C7FF4A] text-[#0B0A0F] font-bold shadow-sm'
+                    : 'bg-[#181620] text-[#A6A1B2] hover:text-[#F7F5FA] border border-white/10'
+                }`}
+              >
+                <Code className="w-3.5 h-3.5" />
+                <span>HTML Preview</span>
+              </button>
+            )}
+            {data.imageUrl && (
+              <button
+                onClick={() => setActiveTab('image')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                  activeTab === 'image'
+                    ? 'bg-[#C7FF4A] text-[#0B0A0F] font-bold shadow-sm'
+                    : 'bg-[#181620] text-[#A6A1B2] hover:text-[#F7F5FA] border border-white/10'
+                }`}
+              >
+                <ImageIcon className="w-3.5 h-3.5" />
+                <span>Image Preview</span>
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Responsive Visualization & Explanation Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* 1200 x 700 Vector SVG Canvas (Left 7 Columns) */}
+          {/* Main Visual Display (Left 7 Columns) */}
           <div className="lg:col-span-7 bg-[#121118] p-3 sm:p-4 rounded-xl border border-white/10 flex flex-col justify-center min-h-[350px] relative overflow-hidden">
-            <MagicSvgCanvas
-              elements={elements}
-              connections={connections}
-              elementsMap={elementsMap}
-              activeElementIds={activeElementIds}
-              selectedElementId={selectedElementId}
-              onSelectElement={(id) => setSelectedElementId(id)}
-            />
+            {activeTab === 'html' && data.html ? (
+              <div className="w-full h-full flex flex-col rounded-lg overflow-hidden">
+                <div className="p-2 bg-[#181620] border-b border-white/10 flex items-center justify-between text-xs text-[#A6A1B2] mb-2">
+                  <span className="font-semibold text-[#C7FF4A] flex items-center gap-1.5">
+                    <Code className="w-3.5 h-3.5" /> HTML Preview
+                  </span>
+                </div>
+                <div className="w-full h-[400px] bg-white rounded-lg overflow-hidden relative">
+                  <iframe
+                    srcDoc={data.html}
+                    title="Magic View HTML Code Preview"
+                    className="w-full h-full border-0"
+                    sandbox="allow-scripts allow-same-origin"
+                  />
+                </div>
+              </div>
+            ) : activeTab === 'image' && data.imageUrl ? (
+              <div className="w-full h-full flex flex-col items-center justify-center">
+                <div className="p-2 w-full flex items-center justify-between text-xs text-[#A6A1B2] mb-2">
+                  <span className="font-semibold text-[#C7FF4A] flex items-center gap-1.5">
+                    <ImageIcon className="w-3.5 h-3.5" /> Image Visual Preview
+                  </span>
+                  <a
+                    href={data.imageUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11px] text-[#C7FF4A] hover:underline flex items-center gap-1"
+                  >
+                    Open Full Resolution <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+                <img
+                  src={data.imageUrl}
+                  alt={data.title || "Magic View Image Preview"}
+                  className="max-h-[420px] w-auto max-w-full object-contain rounded-lg border border-white/10 shadow-lg"
+                />
+              </div>
+            ) : (
+              <MagicSvgCanvas
+                elements={elements}
+                connections={connections}
+                elementsMap={elementsMap}
+                activeElementIds={activeElementIds}
+                selectedElementId={selectedElementId}
+                onSelectElement={(id) => setSelectedElementId(id)}
+              />
+            )}
           </div>
 
           {/* Steps & Controls Panel (Right 5 Columns) */}

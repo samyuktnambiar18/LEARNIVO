@@ -102,13 +102,38 @@ function normalizeMagicViewPayload(rawData: any, parsedResponse: any, userQuery:
     return { success: false, action: 'magic_view', errorMessage: genericErrorMessage };
   }
 
-  // Target object containing elements, steps, summary, etc.
-  const source = parsedResponse.data || parsedResponse;
+  // Target object containing elements, steps, summary, html, imageUrl etc.
+  const source = parsedResponse.data || parsedResponse.result || parsedResponse;
+
+  // Extract HTML content if available
+  let html: string | undefined = undefined;
+  if (typeof source.html === 'string' && source.html.trim()) {
+    html = source.html;
+  } else if (typeof source.htmlCode === 'string' && source.htmlCode.trim()) {
+    html = source.htmlCode;
+  } else if (typeof source.markup === 'string' && source.markup.trim()) {
+    html = source.markup;
+  } else if (typeof source.content === 'string' && (source.content.includes('<') && source.content.includes('>'))) {
+    html = source.content;
+  } else if (typeof rawData === 'string' && (rawData.includes('<') && rawData.includes('>'))) {
+    html = rawData;
+  }
+
+  // Extract Image URL if available
+  let imageUrl: string | undefined = undefined;
+  const rawImg = source.imageUrl || source.image_url || source.image || source.img || source.src;
+  if (typeof rawImg === 'string' && rawImg.trim()) {
+    imageUrl = rawImg.trim();
+  } else if (typeof source.url === 'string' && (source.url.startsWith('http') || source.url.startsWith('data:image/'))) {
+    imageUrl = source.url.trim();
+  } else if (typeof rawData === 'string' && (rawData.startsWith('http') || rawData.startsWith('data:image/'))) {
+    imageUrl = rawData.trim();
+  }
 
   // Extract required & optional fields
-  const title = String(source.title || source.concept || `Visualizing: ${userQuery}`);
+  const title = String(source.title || source.concept || source.question || `Visualizing: ${userQuery}`);
   const concept = String(source.concept || userQuery);
-  const visual_type = String(source.visual_type || source.visualType || 'diagram');
+  const visual_type = String(source.visual_type || source.visualType || (html ? 'html_preview' : imageUrl ? 'image_preview' : 'diagram'));
   const summary = String(source.summary || source.overview || source.description || `Visual explanation for ${userQuery}.`);
   const key_takeaway = String(source.key_takeaway || source.keyTakeaway || source.takeaway || `${userQuery} core concept breakdown.`);
 
@@ -212,6 +237,8 @@ function normalizeMagicViewPayload(rawData: any, parsedResponse: any, userQuery:
     animations,
     interactions,
     key_takeaway,
+    html,
+    imageUrl,
   };
 
   return {
@@ -228,58 +255,56 @@ function normalizeMagicViewPayload(rawData: any, parsedResponse: any, userQuery:
 function extractObjectFromRaw(rawData: any): any {
   if (!rawData) return null;
 
-  // Direct object matching standard keys
-  if (
-    typeof rawData === 'object' &&
-    (rawData.visual_type || rawData.elements || rawData.steps || rawData.title || rawData.summary || rawData.concept || rawData.success !== undefined)
-  ) {
-    return rawData;
-  }
-
+  // Search candidate sub-objects first (such as rawData.result, rawData.data, rawData.output)
   const candidateFields = [
-    rawData,
+    rawData.result,
+    rawData.data,
     rawData.output,
     rawData.response,
-    rawData.result,
-    rawData.text,
-    rawData.data,
     rawData.responseData,
+    rawData._RESPONSEDATA?.output,
+    rawData,
   ];
 
   for (const candidate of candidateFields) {
     if (!candidate) continue;
 
-    if (typeof candidate === 'object') {
-      if (candidate.visual_type || candidate.elements || candidate.steps || candidate.title || candidate.summary || candidate.concept || candidate.success !== undefined) {
-        return candidate;
-      }
-      continue;
-    }
+    let target = candidate;
 
-    if (typeof candidate === 'string') {
-      let cleaned = candidate.trim();
-      // Remove Markdown code fences like ```json ... ```
-      cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-
+    if (typeof target === 'string') {
+      let cleaned = target.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
       try {
-        const parsed = JSON.parse(cleaned);
-        if (parsed && typeof parsed === 'object') {
-          return parsed;
-        }
+        target = JSON.parse(cleaned);
       } catch {
-        // Try substring extraction if JSON is wrapped inside text response
         const firstBrace = cleaned.indexOf('{');
         const lastBrace = cleaned.lastIndexOf('}');
         if (firstBrace !== -1 && lastBrace > firstBrace) {
           try {
-            const parsedSub = JSON.parse(cleaned.slice(firstBrace, lastBrace + 1));
-            if (parsedSub && typeof parsedSub === 'object') {
-              return parsedSub;
-            }
+            target = JSON.parse(cleaned.slice(firstBrace, lastBrace + 1));
           } catch {
             // Continuation
           }
         }
+      }
+    }
+
+    if (target && typeof target === 'object') {
+      if (
+        Array.isArray(target.elements) ||
+        Array.isArray(target.steps) ||
+        Array.isArray(target.nodes) ||
+        target.visual_type ||
+        target.title ||
+        target.summary ||
+        target.concept ||
+        target.html ||
+        target.htmlCode ||
+        target.markup ||
+        target.imageUrl ||
+        target.image_url ||
+        target.image
+      ) {
+        return target;
       }
     }
   }

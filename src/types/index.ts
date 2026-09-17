@@ -197,6 +197,8 @@ export interface MagicViewData {
   animations: MagicViewAnimation[];
   interactions: MagicViewInteraction[];
   key_takeaway: string;
+  html?: string;
+  imageUrl?: string;
 }
 
 export interface MagicViewResult {
