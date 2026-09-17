@@ -4,6 +4,7 @@ import { User, Settings, Sliders, Eye, LogOut, Check } from 'lucide-react';
 import { MainLayout } from '../../components/layout/MainLayout';
 import { storageService } from '../../services/storage/storageService';
 import { authService } from '../../services/auth/authService';
+import { profileService } from '../../services/profileService';
 import { User as UserModel, LearningProfile } from '../../types';
 import { Button } from '../../components/ui/Button';
 
@@ -35,9 +36,22 @@ export const SettingsPage: React.FC = () => {
       setLevel(p.level);
       setDailyTarget(p.dailyTargetMinutes);
     }
+
+    // Fetch live profile data from Supabase profile table
+    async function loadSupabaseProfile() {
+      const dbProf = await profileService.getProfile();
+      if (dbProf) {
+        if (dbProf.full_name) setName(dbProf.full_name);
+        if (dbProf.email) setEmail(dbProf.email);
+        if (dbProf.focus_area) setFocusArea(dbProf.focus_area);
+        if (dbProf.level) setLevel(dbProf.level);
+        if (dbProf.daily_target_minutes) setDailyTarget(dbProf.daily_target_minutes);
+      }
+    }
+    loadSupabaseProfile();
   }, []);
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (user) {
       const updatedUser = { ...user, name, email };
@@ -53,6 +67,15 @@ export const SettingsPage: React.FC = () => {
     };
     storageService.saveProfile(updatedProfile);
     setProfile(updatedProfile);
+
+    // Persist to Supabase profile table
+    await profileService.saveProfile({
+      full_name: name,
+      email: email,
+      focus_area: focusArea,
+      level: level,
+      daily_target_minutes: dailyTarget
+    });
 
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 2500);

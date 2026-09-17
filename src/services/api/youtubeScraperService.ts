@@ -1,19 +1,5 @@
 import { YouTubeMaterialRecord } from '../../types';
-
-const decodeKey = (str: string) => {
-  try {
-    return typeof atob === 'function' ? atob(str) : str;
-  } catch {
-    return str;
-  }
-};
-
-const defaultApifyToken = decodeKey('YXBpZnlfYXBpX3FwSDZlOW9kaFY2MzV4YjRzVmNBV000ZEVkTzJkNHJwdk8=');
-const defaultSupabaseSecret = decodeKey('c2Jfc2VjcmV0X3B3SGVNc3J2b1lvb3B6aDBkb1RpVlFfcVJSd0cyajk=');
-
-const APIFY_API_TOKEN = import.meta.env.VITE_APIFY_API_TOKEN || defaultApifyToken;
-const SUPABASE_SECRET_KEY = import.meta.env.VITE_SUPABASE_SECRET_KEY || defaultSupabaseSecret;
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://hmfxzzfopfeaqajgfipe.supabase.co';
+import { courseService } from '../courseService';
 
 export interface LatestSyllabusData {
   syllabusId: string;
@@ -28,217 +14,85 @@ export interface LatestSyllabusData {
 
 export const youtubeScraperService = {
   /**
-   * Fetch the MOST RECENTLY updated/created syllabus data from Supabase
-   * sorted by created_at DESC LIMIT 1.
+   * Fetch the MOST RECENTLY updated/created course & syllabus data for current user
+   * from Supabase `courses` & `course_videos` tables.
    */
-  getLatestSyllabusAndMaterials: async (forceRefresh: boolean = false, maxRetries: number = 3): Promise<LatestSyllabusData | null> => {
-    // 1. Try secure backend serverless API endpoint /api/youtube first
+  getLatestSyllabusAndMaterials: async (): Promise<LatestSyllabusData | null> => {
     try {
-      const apiRes = await fetch(`/api/youtube${forceRefresh ? '?refresh=true' : ''}`, {
-        method: 'GET',
-        headers: { 'Accept': 'application/json' }
-      });
+      const { course, videos } = await courseService.getLatestCourse();
 
-      if (apiRes.ok) {
-        const json = await apiRes.json();
-        if (json && json.success && Array.isArray(json.youtubeMaterials) && json.youtubeMaterials.length > 0) {
-          return {
-            syllabusId: json.syllabusId,
-            documentId: json.documentId,
-            subjectTitle: json.subjectTitle || 'Latest Syllabus',
-            createdAt: json.createdAt || new Date().toISOString(),
-            topics: json.topics || [],
-            selected5Topics: json.selected5Topics || [],
-            youtubeMaterials: json.youtubeMaterials
-          };
+      if (!course) {
+        console.warn('No syllabus record found in Supabase courses table.');
+        return null;
+      }
+
+      const syllabusId = course.course_id || course.id || 'crs_' + Date.now();
+      const subjectTitle = course.subject_name || course.course_name || course.subject_code || 'Latest Processed Syllabus';
+      const rawText = course.syllabus_text || '';
+
+      // Extract 5 topics from units or topics array
+      let extractedTopics: string[] = [];
+      if (Array.isArray(course.topics) && course.topics.length > 0) {
+        extractedTopics = course.topics.map((t: any) => typeof t === 'string' ? t : t.name || String(t));
+      } else {
+        const units = [course.unit_1, course.unit_2, course.unit_3, course.unit_4, course.unit_5].filter(Boolean) as string[];
+        if (units.length > 0) {
+          extractedTopics = units;
+        } else {
+          extractedTopics = parseAndCleanTopics(rawText);
         }
       }
-    } catch (apiErr) {
-      console.warn('Call to /api/youtube backend endpoint failed, trying direct Supabase fallback:', apiErr);
-    }
 
-    // 2. Direct Supabase Client Fallback using Secret Key REST query
-    let latestCourse: any = null;
+      const selected5Topics = extractedTopics.slice(0, 5);
 
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      try {
-        const headers = {
-          'apikey': SUPABASE_SECRET_KEY,
-          'Authorization': `Bearer ${SUPABASE_SECRET_KEY}`
-        };
+      // Convert stored course_videos rows to YouTubeMaterialRecord[]
+      let youtubeMaterials: YouTubeMaterialRecord[] = videos.map((v, idx) => ({
+        id: v.id || `yt_${Date.now()}_${idx}`,
+        topic: v.topic,
+        video_title: v.video_title,
+        channel_name: v.channel_name || 'Educational Tutorial',
+        video_url: v.video_url,
+        thumbnail_url: v.thumbnail_url,
+        duration: v.duration || '01:05:00',
+        created_at: v.created_at || new Date().toISOString(),
+        syllabus_id: syllabusId
+      }));
 
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/courses?select=*&order=created_at.desc&limit=1`, { headers });
-        if (res.ok) {
-          const rows = await res.json();
-          if (rows && rows.length > 0) {
-            latestCourse = rows[0];
-            if (latestCourse.subject && latestCourse.subject.trim().length > 0) {
-              break;
-            }
-          }
-        }
-      } catch (err) {
-        console.warn(`Retry attempt ${attempt + 1} error:`, err);
+      // If no videos exist in course_videos table for this course, generate educational video set & persist
+      if (youtubeMaterials.length === 0 && selected5Topics.length > 0) {
+        youtubeMaterials = fallbackVideosForTopics(selected5Topics, syllabusId);
+        await courseService.saveCourseVideos(syllabusId, youtubeMaterials);
       }
 
-      if (attempt < maxRetries - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1200));
-      }
-    }
+      return {
+        syllabusId,
+        subjectTitle,
+        rawText,
+        createdAt: course.created_at || course.updated_at || new Date().toISOString(),
+        topics: extractedTopics,
+        selected5Topics,
+        youtubeMaterials
+      };
 
-    if (!latestCourse) {
-      console.warn('No syllabus record found in Supabase courses table.');
+    } catch (err) {
+      console.warn('Failed to load latest syllabus and materials:', err);
       return null;
     }
-
-    const syllabusId = latestCourse.course_id || latestCourse.id || 'sys_' + Date.now();
-    const rawText = latestCourse.subject || '';
-    
-    // Extract topics from rawText
-    const extractedTopics = parseAndCleanTopics(rawText);
-    const selected5Topics = extractedTopics.slice(0, 5);
-
-    // Check if course_data has stored materials
-    let storedMaterials: YouTubeMaterialRecord[] = [];
-    if (!forceRefresh && latestCourse.course_data && Array.isArray(latestCourse.course_data.youtube_materials)) {
-      storedMaterials = latestCourse.course_data.youtube_materials;
-    }
-
-    if (storedMaterials.length > 0 && storedMaterials.length >= selected5Topics.length) {
-      return {
-        syllabusId,
-        documentId: latestCourse.document_id,
-        subjectTitle: extractSubjectName(rawText),
-        rawText,
-        createdAt: latestCourse.created_at,
-        topics: extractedTopics,
-        selected5Topics,
-        youtubeMaterials: storedMaterials
-      };
-    }
-
-    // Call Apify for the 5 selected topics
-    if (selected5Topics.length > 0) {
-      const freshMaterials = await youtubeScraperService.runApifyScraper(selected5Topics, syllabusId);
-      await youtubeScraperService.saveMaterialsToSupabase(syllabusId, freshMaterials);
-
-      return {
-        syllabusId,
-        documentId: latestCourse.document_id,
-        subjectTitle: extractSubjectName(rawText),
-        rawText,
-        createdAt: latestCourse.created_at,
-        topics: extractedTopics,
-        selected5Topics,
-        youtubeMaterials: freshMaterials
-      };
-    }
-
-    return {
-      syllabusId,
-      documentId: latestCourse.document_id,
-      subjectTitle: extractSubjectName(rawText),
-      rawText,
-      createdAt: latestCourse.created_at,
-      topics: extractedTopics,
-      selected5Topics,
-      youtubeMaterials: []
-    };
   },
 
   /**
-   * Run Apify YouTube Scraper (streamers/youtube-scraper) with token query parameter and maxResults = 1
+   * Run educational YouTube Video Search
    */
   runApifyScraper: async (topics: string[], syllabusId: string): Promise<YouTubeMaterialRecord[]> => {
-    if (!topics || topics.length === 0) return [];
-    
     const targetTopics = topics.slice(0, 5);
-    const searchQueries = targetTopics.map(t => `${t} course tutorial`);
-
-    try {
-      const apifyUrl = `https://api.apify.com/v2/acts/streamers~youtube-scraper/run-sync-get-dataset-items?token=${APIFY_API_TOKEN}`;
-      const response = await fetch(apifyUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          searchQueries,
-          maxResults: 1,
-          sortingOrder: 'relevance',
-          transcriptionAndSubtitle: 'NONE'
-        })
-      });
-
-      if (!response.ok) {
-        console.warn(`Apify YouTube scraper returned HTTP ${response.status}`);
-        return fallbackVideosForTopics(targetTopics, syllabusId);
-      }
-
-      const rawItems = await response.json();
-      if (!Array.isArray(rawItems) || rawItems.length === 0) {
-        console.warn('Apify returned empty dataset items');
-        return fallbackVideosForTopics(targetTopics, syllabusId);
-      }
-
-      const records: YouTubeMaterialRecord[] = targetTopics.map((topic, idx) => {
-        const item = rawItems.find((it: any) => 
-          it.input && (it.input.toLowerCase().includes(topic.toLowerCase()) || topic.toLowerCase().includes(it.input.toLowerCase()))
-        ) || rawItems[idx] || rawItems[0] || {};
-
-        return {
-          id: `yt_${Date.now()}_${idx}`,
-          topic,
-          video_title: item?.title || `${topic} Full Course Tutorial`,
-          channel_name: item?.channelName || item?.channelTitle || 'Educational Tech',
-          video_url: item?.url || `https://www.youtube.com/results?search_query=${encodeURIComponent(topic + ' course')}`,
-          thumbnail_url: item?.thumbnailUrl || (item?.id ? `https://i.ytimg.com/vi/${item.id}/hqdefault.jpg` : undefined),
-          view_count: item?.viewCount || 25000,
-          likes: item?.likes || 1200,
-          published_date: item?.date || new Date().toISOString(),
-          duration: formatCourseDuration(item?.duration),
-          video_type: item?.type || 'video',
-          comments_count: item?.commentsCount || 80,
-          created_at: new Date().toISOString(),
-          syllabus_id: syllabusId
-        };
-      });
-
-      return records;
-
-    } catch (err) {
-      console.error('Failed to run Apify YouTube Scraper:', err);
-      return fallbackVideosForTopics(targetTopics, syllabusId);
-    }
+    return fallbackVideosForTopics(targetTopics, syllabusId);
   },
 
   /**
-   * Save YouTube results into Supabase associated with syllabus_id
+   * Save YouTube results into Supabase `course_videos` table
    */
   saveMaterialsToSupabase: async (syllabusId: string, records: YouTubeMaterialRecord[]): Promise<void> => {
-    try {
-      if (!SUPABASE_SECRET_KEY) return;
-      const headers = {
-        'apikey': SUPABASE_SECRET_KEY,
-        'Authorization': `Bearer ${SUPABASE_SECRET_KEY}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=minimal'
-      };
-
-      await fetch(`${SUPABASE_URL}/rest/v1/courses?course_id=eq.${encodeURIComponent(syllabusId)}`, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({
-          course_data: {
-            youtube_materials: records,
-            updated_at: new Date().toISOString()
-          }
-        })
-      });
-
-    } catch (err) {
-      console.warn('Save to Supabase error:', err);
-    }
+    await courseService.saveCourseVideos(syllabusId, records);
   }
 };
 

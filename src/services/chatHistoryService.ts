@@ -4,9 +4,15 @@ export interface ChatHistoryRow {
   id?: string;
   user_id: string;
   session_id: string;
+  question?: string;
+  user_message?: string;
+  ai_response?: string;
+  topic?: string;
+  subject?: string;
   role: 'user' | 'assistant';
   message: string;
   created_at?: string;
+  updated_at?: string;
 }
 
 export const chatHistoryService = {
@@ -22,13 +28,18 @@ export const chatHistoryService = {
   },
 
   /**
-   * Saves a single message to public.chat_history in Supabase
+   * Saves a conversation message into public.ai_tutor_history in Supabase
    */
   saveMessage: async (row: {
     userId: string;
     sessionId: string;
     role: 'user' | 'assistant';
     message: string;
+    question?: string;
+    user_message?: string;
+    ai_response?: string;
+    topic?: string;
+    subject?: string;
   }): Promise<{ success: boolean; error?: any }> => {
     if (!row.userId) {
       console.warn('saveMessage cancelled: No authenticated user_id provided.');
@@ -42,57 +53,82 @@ export const chatHistoryService = {
       return { success: false, error: 'Empty message.' };
     }
 
-    console.log(`Saving ${row.role} message...`);
-    console.log('Authenticated user:', row.userId);
-    console.log('Current session:', row.sessionId);
-
     try {
+      const payload: any = {
+        user_id: row.userId,
+        session_id: row.sessionId,
+        role: row.role,
+        message: row.message.trim(),
+        user_message: row.role === 'user' ? row.message.trim() : (row.user_message || undefined),
+        ai_response: row.role === 'assistant' ? row.message.trim() : (row.ai_response || undefined),
+        question: row.question || (row.role === 'user' ? row.message.trim() : undefined),
+        topic: row.topic || null,
+        subject: row.subject || null,
+        updated_at: new Date().toISOString()
+      };
+
       const { data, error } = await supabase
-        .from('chat_history')
-        .insert({
+        .from('ai_tutor_history')
+        .insert(payload)
+        .select();
+
+      if (error) {
+        console.warn('Supabase ai_tutor_history insert note:', error.message);
+        // Fallback insertion ignoring optional schema parameters if table exists with simple schema
+        const fallbackPayload = {
           user_id: row.userId,
           session_id: row.sessionId,
           role: row.role,
           message: row.message.trim()
-        })
-        .select();
-
-      if (error) {
-        console.error('SUPABASE CHAT HISTORY ERROR:', error);
-        return { success: false, error };
+        };
+        const { error: err2 } = await supabase.from('ai_tutor_history').insert(fallbackPayload);
+        if (err2) {
+          console.error('SUPABASE AI TUTOR HISTORY FALLBACK ERROR:', err2.message);
+        }
+        return { success: !err2 };
       }
 
-      console.log(`Successfully saved ${row.role} message to Supabase chat_history:`, data);
       return { success: true };
     } catch (err: any) {
-      console.error('SUPABASE CHAT HISTORY ERROR (exception):', err);
+      console.error('SUPABASE AI TUTOR HISTORY EXCEPTION:', err);
       return { success: false, error: err };
     }
   },
 
   /**
-   * Retrieves all chat history for an authenticated user ordered by created_at ascending
+   * Retrieves all AI tutor history for an authenticated user ordered by created_at ascending
    */
   getChatHistory: async (userId: string): Promise<ChatHistoryRow[]> => {
     if (!userId) return [];
 
-    console.log('Loading chat history for user:', userId);
     try {
       const { data, error } = await supabase
-        .from('chat_history')
+        .from('ai_tutor_history')
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: true });
 
-      if (error) {
-        console.error('SUPABASE LOAD CHAT HISTORY ERROR:', error);
-        return [];
+      if (!error && data) {
+        return data.map((r: any) => ({
+          id: r.id,
+          user_id: r.user_id,
+          session_id: r.session_id || 'default_session',
+          role: (r.role || (r.ai_response ? 'assistant' : 'user')) as 'user' | 'assistant',
+          message: r.message || r.user_message || r.ai_response || r.question || '',
+          user_message: r.user_message,
+          ai_response: r.ai_response,
+          topic: r.topic,
+          subject: r.subject,
+          created_at: r.created_at
+        }));
       }
 
-      console.log(`Loaded ${data?.length || 0} chat_history records from Supabase.`);
-      return data || [];
+      if (error) {
+        console.warn('SUPABASE LOAD AI TUTOR HISTORY NOTE:', error.message);
+      }
+      return [];
     } catch (err) {
-      console.error('SUPABASE LOAD CHAT HISTORY ERROR (exception):', err);
+      console.error('SUPABASE LOAD AI TUTOR HISTORY EXCEPTION:', err);
       return [];
     }
   },
@@ -105,20 +141,18 @@ export const chatHistoryService = {
 
     try {
       const { data, error } = await supabase
-        .from('chat_history')
+        .from('ai_tutor_history')
         .select('*')
         .eq('user_id', userId)
         .eq('session_id', sessionId)
         .order('created_at', { ascending: true });
 
       if (error) {
-        console.error('SUPABASE GET SESSION MESSAGES ERROR:', error);
         return [];
       }
 
       return data || [];
     } catch (err) {
-      console.error('SUPABASE GET SESSION MESSAGES ERROR (exception):', err);
       return [];
     }
   }

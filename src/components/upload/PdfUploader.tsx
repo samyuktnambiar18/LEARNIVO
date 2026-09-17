@@ -59,7 +59,7 @@ export const PdfUploader: React.FC<PdfUploaderProps> = ({ onSuccess }) => {
       await new Promise(resolve => setTimeout(resolve, 1500));
 
       // Fetch the newly stored syllabus & 5 topics from Supabase courses table
-      const latestData = await youtubeScraperService.getLatestSyllabusAndMaterials(true, 3);
+      const latestData = await youtubeScraperService.getLatestSyllabusAndMaterials();
 
       if (latestData && latestData.selected5Topics.length > 0) {
         result.topics = latestData.selected5Topics.map((name, i) => ({

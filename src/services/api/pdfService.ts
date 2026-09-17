@@ -1,7 +1,8 @@
 import { parsePdfResponse } from '../../utils/adapters';
 import { extractTextFromPdfFile } from '../../utils/pdfExtractor';
 import { youtubeService } from './youtubeService';
-import { LearningMaterial } from '../../types';
+import { courseService } from '../courseService';
+import { LearningMaterial, YouTubeMaterialRecord } from '../../types';
 
 const PDF_WEBHOOK_URL = import.meta.env.VITE_PDF_WEBHOOK_URL || 'https://api.agents.snsihub.ai/webhook/d519ae83-ca78-4432-906a-728a293e202f';
 
@@ -62,6 +63,26 @@ export const pdfService = {
         console.warn('Failed to fetch YouTube recommendations for PDF topics:', ytErr);
         material.videos = [];
       }
+    }
+
+    // Step 4: Save newly created course & videos into Supabase courses and course_videos tables
+    try {
+      const savedId = await courseService.saveCourse(material);
+      if (savedId && material.videos && material.videos.length > 0) {
+        const videoRecords: YouTubeMaterialRecord[] = material.videos.map((v, idx) => ({
+          id: v.id || `yt_${Date.now()}_${idx}`,
+          topic: material.topics[0]?.name || 'General',
+          video_title: v.title,
+          channel_name: 'Educational Tutorial',
+          video_url: v.youtubeUrl || `https://www.youtube.com/watch?v=${v.id}`,
+          thumbnail_url: v.thumbnailUrl,
+          duration: '01:05:00',
+          created_at: new Date().toISOString()
+        }));
+        await courseService.saveCourseVideos(material.id || savedId, videoRecords);
+      }
+    } catch (dbErr) {
+      console.warn('Failed to persist course to Supabase:', dbErr);
     }
 
     return material;
