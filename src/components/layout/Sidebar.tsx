@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   BrainCircuit,
@@ -22,6 +22,7 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ onLogout, className = '' }) => {
   const location = useLocation();
+  const navigate = useNavigate();
 
   const navItems = [
     {
@@ -121,9 +122,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ onLogout, className = '' }) =>
           onClick={() => {
             authService.logout();
             if (onLogout) onLogout();
-            window.location.href = '/login';
+            navigate('/login');
           }}
-          className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm font-medium text-[#A6A1B2] hover:text-rose-400 hover:bg-rose-500/10 transition-all"
+          className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm font-medium text-[#A6A1B2] hover:text-rose-400 hover:bg-rose-500/10 transition-all cursor-pointer"
         >
           <LogOut className="w-4 h-4" />
           <span>Sign Out</span>

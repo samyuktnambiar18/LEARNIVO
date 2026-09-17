@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { User, Settings, Sliders, Eye, LogOut, Check } from 'lucide-react';
 import { MainLayout } from '../../components/layout/MainLayout';
 import { storageService } from '../../services/storage/storageService';
@@ -7,6 +8,7 @@ import { User as UserModel, LearningProfile } from '../../types';
 import { Button } from '../../components/ui/Button';
 
 export const SettingsPage: React.FC = () => {
+  const navigate = useNavigate();
   const [user, setUser] = useState<UserModel | null>(null);
   const [profile, setProfile] = useState<LearningProfile | null>(null);
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -186,7 +188,7 @@ export const SettingsPage: React.FC = () => {
               variant="danger"
               onClick={() => {
                 authService.logout();
-                window.location.href = '/login';
+                navigate('/login');
               }}
             >
               <LogOut className="w-4 h-4 mr-1.5" />
