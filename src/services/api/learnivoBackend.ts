@@ -15,7 +15,8 @@ export const learnivoBackend = {
   generateMagicView: async (
     message: string,
     userId: string,
-    sessionId: string
+    sessionId: string,
+    imageUrl?: string
   ): Promise<MagicViewResult> => {
     if (!message || !message.trim()) {
       return {
@@ -36,6 +37,16 @@ export const learnivoBackend = {
           user_id: userId,
           session_id: sessionId,
           message: message.trim(),
+          query: message.trim(),
+          imageUrl: imageUrl || '',
+          image: imageUrl || '',
+          image_url: imageUrl || '',
+          imageBase64: imageUrl || '',
+          image_base64: imageUrl || '',
+          file: imageUrl || '',
+          media: imageUrl || '',
+          payloadImage: imageUrl || '',
+          userImage: imageUrl || ''
         }),
       });
 

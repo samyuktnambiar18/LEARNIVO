@@ -181,7 +181,8 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
         const magicResult = await learnivoBackend.generateMagicView(
           cleanQuery,
           user?.id || 'guest',
-          sessionId
+          sessionId,
+          currentImage?.base64 || currentImage?.previewUrl
         );
 
         if (!magicResult.success || !magicResult.data) {
@@ -221,7 +222,8 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
         const response = await chatService.sendMessage(
           userText,
           selectedMaterial?.title,
-          selectedMaterial?.rawText
+          selectedMaterial?.rawText,
+          currentImage?.base64 || currentImage?.previewUrl
         );
 
         const aiMessage: ChatMessage = {

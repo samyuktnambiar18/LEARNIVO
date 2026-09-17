@@ -34,7 +34,14 @@ export const chatService = {
           context: materialText ? materialText.slice(0, 2000) : '',
           imageUrl: imageUrl || '',
           image: imageUrl || '',
+          image_url: imageUrl || '',
           imageBase64: imageUrl || '',
+          image_base64: imageUrl || '',
+          file: imageUrl || '',
+          media: imageUrl || '',
+          payloadImage: imageUrl || '',
+          userImage: imageUrl || '',
+          attachments: imageUrl ? [{ url: imageUrl, type: 'image', data: imageUrl }] : []
         })
       });
 
