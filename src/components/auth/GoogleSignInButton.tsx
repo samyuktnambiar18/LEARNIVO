@@ -21,14 +21,13 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
   const [showEmailModal, setShowEmailModal] = useState<boolean>(false);
   const [googleEmailInput, setGoogleEmailInput] = useState<string>('');
 
-  const handleGoogleClick = async () => {
+  const handleGoogleClick = () => {
     setIsLoading(true);
     try {
-      // Attempt standard OAuth popup / Supabase Google login
-      await authService.googleLogin();
+      // Trigger DIRECT Google OAuth 2.0 endpoint on accounts.google.com
+      authService.googleLoginDirect();
     } catch (err: any) {
-      console.warn('Google OAuth popup skipped or restricted on current origin:', err);
-      // If popup fails or origin is restricted, show inline Google account login modal
+      console.warn('Direct Google OAuth redirect error:', err);
       setShowEmailModal(true);
       setIsLoading(false);
     }

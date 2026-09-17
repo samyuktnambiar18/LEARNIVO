@@ -176,26 +176,11 @@ export const authService = {
       throw new Error('Unable to read Google profile from login token.');
     }
 
-    let userId = payload.sub;
-
-    // Try to sync with Supabase Auth ID token if Google provider is enabled in Supabase
-    try {
-      const { data, error } = await supabase.auth.signInWithIdToken({
-        provider: 'google',
-        token: credential
-      });
-      if (!error && data?.user) {
-        userId = data.user.id;
-      }
-    } catch (err) {
-      console.info('Supabase signInWithIdToken skipped; using verified Google profile session.', err);
-    }
-
     const user: User = {
-      id: userId,
+      id: payload.sub || 'google_' + Date.now(),
       name: payload.name || payload.email.split('@')[0],
       email: payload.email,
-      avatar: payload.picture,
+      avatar: payload.picture || 'https://lh3.googleusercontent.com/a/default-user',
       createdAt: new Date().toISOString()
     };
 
@@ -203,16 +188,54 @@ export const authService = {
     return user;
   },
 
-  googleLogin: async (): Promise<void> => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin + '/dashboard'
-      }
-    });
+  /**
+   * Direct Google OAuth 2.0 Authorization Endpoint (No Supabase involved)
+   */
+  googleLoginDirect: (): void => {
+    const clientId = authService.getGoogleClientId();
+    const redirectUri = window.location.origin + '/login';
+    const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` + new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: 'token id_token',
+      scope: 'email profile openid',
+      prompt: 'select_account',
+      nonce: Math.random().toString(36).substring(2)
+    }).toString();
 
-    if (error) {
-      throw new Error(error.message || 'Google sign-in failed.');
+    window.location.href = googleAuthUrl;
+  },
+
+  /**
+   * Parse ID token or Access Token from Google redirect hash (#id_token=...)
+   */
+  checkAndHandleGoogleHashRedirect: (): User | null => {
+    try {
+      const hash = window.location.hash;
+      if (!hash || !hash.includes('id_token=')) return null;
+
+      const params = new URLSearchParams(hash.replace(/^#/, ''));
+      const idToken = params.get('id_token');
+      if (!idToken) return null;
+
+      const payload = decodeGoogleJwt(idToken);
+      if (!payload || !payload.email) return null;
+
+      const user: User = {
+        id: payload.sub || 'google_' + Date.now(),
+        name: payload.name || payload.email.split('@')[0],
+        email: payload.email,
+        avatar: payload.picture || 'https://lh3.googleusercontent.com/a/default-user',
+        createdAt: new Date().toISOString()
+      };
+
+      storageService.saveUser(user);
+      // Clean URL hash
+      window.history.replaceState(null, '', window.location.pathname);
+      return user;
+    } catch (err) {
+      console.warn('Failed to parse Google OAuth hash token:', err);
+      return null;
     }
   },
 

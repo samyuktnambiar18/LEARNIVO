@@ -17,6 +17,13 @@ export const Signup: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  React.useEffect(() => {
+    const googleUser = authService.checkAndHandleGoogleHashRedirect();
+    if (googleUser) {
+      handleGoogleSuccess(googleUser);
+    }
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
