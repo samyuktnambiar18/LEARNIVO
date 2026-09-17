@@ -217,9 +217,18 @@ export interface MagicViewNarrationStep {
 export interface MagicViewNarrationPayload {
   question: string;
   concept: string;
-  step: MagicViewNarrationStep;
-  visual_context: string;
-  key_takeaway: string;
+  stepNumber: number;
+  stepTitle: string;
+  stepExplanation: string;
+  visualContext: string;
+  keyTakeaway: string;
+  step?: {
+    number: number;
+    title: string;
+    explanation: string;
+  };
+  visual_context?: string;
+  key_takeaway?: string;
 }
 
 export interface MagicViewNarrationResult {

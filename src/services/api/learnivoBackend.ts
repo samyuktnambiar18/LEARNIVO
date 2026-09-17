@@ -102,7 +102,7 @@ export const learnivoBackend = {
         console.warn(`Narration webhook returned HTTP status ${response.status}`);
         return {
           success: false,
-          errorMessage: "Unable to load narration. Please try again."
+          errorMessage: "Unable to load explanation. Please try again."
         };
       }
 
@@ -138,14 +138,14 @@ export const learnivoBackend = {
 
       return {
         success: false,
-        errorMessage: "No narration available for this step."
+        errorMessage: "No explanation available."
       };
 
     } catch (error) {
       console.error("NARRATION FETCH ERROR:", error);
       return {
         success: false,
-        errorMessage: "Unable to load narration. Please try again."
+        errorMessage: "Unable to load explanation. Please try again."
       };
     }
   },

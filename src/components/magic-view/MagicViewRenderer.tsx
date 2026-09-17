@@ -224,23 +224,33 @@ export const MagicViewRenderer: React.FC<MagicViewRendererProps> = ({ data }) =>
       ? `Highlighting nodes: ${activeElementsList.join(', ')}`
       : `Visual explanation diagram for ${data.concept || data.title}`;
 
+    const stepNum = activeStep ? activeStep.step_number : currentStepIndex + 1;
+    const stepTitle = activeStep ? activeStep.title : `Step ${currentStepIndex + 1}`;
+    const stepExplanation = activeStep ? activeStep.description : data.summary;
+    const keyTakeaway = data.key_takeaway || data.summary;
+
     const payload: MagicViewNarrationPayload = {
       question: data.concept || data.title,
       concept: data.concept || data.title,
+      stepNumber: stepNum,
+      stepTitle: stepTitle,
+      stepExplanation: stepExplanation,
+      visualContext: visualContext,
+      keyTakeaway: keyTakeaway,
       step: {
-        number: activeStep ? activeStep.step_number : currentStepIndex + 1,
-        title: activeStep ? activeStep.title : `Step ${currentStepIndex + 1}`,
-        explanation: activeStep ? activeStep.description : data.summary,
+        number: stepNum,
+        title: stepTitle,
+        explanation: stepExplanation,
       },
       visual_context: visualContext,
-      key_takeaway: data.key_takeaway || data.summary,
+      key_takeaway: keyTakeaway,
     };
 
     const result = await learnivoBackend.fetchMagicViewNarration(payload);
 
     if (!result.success) {
       setNarrationState('idle');
-      setNarrationError(result.errorMessage || "Unable to load narration. Please try again.");
+      setNarrationError(result.errorMessage || "Unable to load explanation. Please try again.");
       return;
     }
 
