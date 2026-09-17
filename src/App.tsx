@@ -12,6 +12,7 @@ import { ChatPage } from './pages/Chat';
 import { AssessmentPage } from './pages/Assessment';
 import { MaterialsPage } from './pages/Materials';
 import { SettingsPage } from './pages/Settings';
+import { LearningArenaPage } from './pages/LearningArena';
 
 import { authService } from './services/auth/authService';
 
@@ -43,6 +44,10 @@ export const App: React.FC = () => {
 
         {/* Practice */}
         <Route path="/practice" element={<PracticePage />} />
+
+        {/* Learning Arena */}
+        <Route path="/learning-arena" element={<LearningArenaPage />} />
+        <Route path="/arena" element={<LearningArenaPage />} />
 
         {/* AI Tutor / Chat */}
         <Route path="/ai-tutor" element={<ChatPage />} />

@@ -3,6 +3,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   BrainCircuit,
+  Zap,
   BarChart3,
   MessageSquareCode,
   FileCheck2,
@@ -36,6 +37,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ onLogout, className = '' }) =>
       path: '/practice',
       altPaths: ['/pages/practice.html'],
       icon: BrainCircuit
+    },
+    {
+      label: 'Learning Arena',
+      path: '/learning-arena',
+      altPaths: ['/arena'],
+      icon: Zap
     },
     {
       label: 'Progress',
