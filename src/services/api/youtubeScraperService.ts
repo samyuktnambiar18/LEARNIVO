@@ -21,7 +21,7 @@ export const youtubeScraperService = {
    * Fetch the MOST RECENTLY uploaded syllabus data from Supabase
    * sorted by created_at DESC LIMIT 1
    */
-  getLatestSyllabusAndMaterials: async (): Promise<LatestSyllabusData | null> => {
+  getLatestSyllabusAndMaterials: async (forceRefresh: boolean = false): Promise<LatestSyllabusData | null> => {
     try {
       // Step 1: Query Supabase courses table for the newest syllabus record
       const { data: latestCourses, error: courseErr } = await supabase
@@ -34,7 +34,7 @@ export const youtubeScraperService = {
         console.warn('Supabase courses fetch warning:', courseErr);
       }
 
-      let latestCourse = latestCourses && latestCourses.length > 0 ? latestCourses[0] : null;
+      const latestCourse = latestCourses && latestCourses.length > 0 ? latestCourses[0] : null;
 
       if (!latestCourse) {
         return null;
@@ -51,11 +51,11 @@ export const youtubeScraperService = {
 
       // Check if YouTube materials are already stored in course_data for this exact syllabus
       let storedMaterials: YouTubeMaterialRecord[] = [];
-      if (latestCourse.course_data && Array.isArray(latestCourse.course_data.youtube_materials)) {
+      if (!forceRefresh && latestCourse.course_data && Array.isArray(latestCourse.course_data.youtube_materials)) {
         storedMaterials = latestCourse.course_data.youtube_materials;
       }
 
-      // If YouTube materials already exist for these topics, return them directly
+      // If YouTube materials already exist for these topics and not forcing refresh, return them directly
       if (storedMaterials.length > 0) {
         return {
           syllabusId,
@@ -107,13 +107,14 @@ export const youtubeScraperService = {
 
   /**
    * Calls Apify YouTube Scraper (streamers/youtube-scraper) with maxResults = 1
-   * for the 5 selected topics.
+   * for the 5 selected topics with course tutorial focus (max 1 hr format).
    */
   runApifyScraper: async (topics: string[], syllabusId: string): Promise<YouTubeMaterialRecord[]> => {
     if (!topics || topics.length === 0) return [];
     
     // Ensure max 5 topics
     const targetTopics = topics.slice(0, 5);
+    const searchQueries = targetTopics.map(t => `${t} course tutorial`);
 
     try {
       const response = await fetch('https://api.apify.com/v2/acts/streamers~youtube-scraper/run-sync-get-dataset-items', {
@@ -123,7 +124,7 @@ export const youtubeScraperService = {
           'Authorization': `Bearer ${APIFY_API_TOKEN}`
         },
         body: JSON.stringify({
-          searchQueries: targetTopics,
+          searchQueries,
           maxResults: 1,
           sortingOrder: 'relevance',
           transcriptionAndSubtitle: 'NONE'
@@ -143,24 +144,23 @@ export const youtubeScraperService = {
 
       // Map dataset items to YouTubeMaterialRecord objects
       const records: YouTubeMaterialRecord[] = targetTopics.map((topic, idx) => {
-        // Find matching Apify item by input search query or position
         const item = rawItems.find((it: any) => 
-          it.input && it.input.toLowerCase().trim() === topic.toLowerCase().trim()
-        ) || rawItems[idx] || rawItems[0];
+          it.input && (it.input.toLowerCase().includes(topic.toLowerCase()) || topic.toLowerCase().includes(it.input.toLowerCase()))
+        ) || rawItems[idx] || rawItems[0] || {};
 
         return {
           id: `yt_${Date.now()}_${idx}`,
           topic,
-          video_title: item?.title || `${topic} Explained`,
+          video_title: item?.title || `${topic} Full Course Tutorial`,
           channel_name: item?.channelName || item?.channelTitle || 'Educational Tech',
-          video_url: item?.url || `https://www.youtube.com/results?search_query=${encodeURIComponent(topic)}`,
+          video_url: item?.url || `https://www.youtube.com/results?search_query=${encodeURIComponent(topic + ' course')}`,
           thumbnail_url: item?.thumbnailUrl || (item?.id ? `https://i.ytimg.com/vi/${item.id}/hqdefault.jpg` : undefined),
-          view_count: item?.viewCount || 10000,
-          likes: item?.likes || 500,
+          view_count: item?.viewCount || 25000,
+          likes: item?.likes || 1200,
           published_date: item?.date || new Date().toISOString(),
-          duration: item?.duration || '00:10:00',
+          duration: formatCourseDuration(item?.duration),
           video_type: item?.type || 'video',
-          comments_count: item?.commentsCount || 50,
+          comments_count: item?.commentsCount || 80,
           created_at: new Date().toISOString(),
           syllabus_id: syllabusId
         };
@@ -179,15 +179,17 @@ export const youtubeScraperService = {
    */
   saveMaterialsToSupabase: async (syllabusId: string, records: YouTubeMaterialRecord[]): Promise<void> => {
     try {
-      // 1. Update courses table course_data JSONB field with secret key
+      const headers = {
+        'apikey': SUPABASE_SECRET_KEY,
+        'Authorization': `Bearer ${SUPABASE_SECRET_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      };
+
+      // 1. Update courses table course_data JSONB field
       const saveRes = await fetch(`${SUPABASE_URL}/rest/v1/courses?course_id=eq.${encodeURIComponent(syllabusId)}`, {
         method: 'PATCH',
-        headers: {
-          'apikey': SUPABASE_SECRET_KEY,
-          'Authorization': `Bearer ${SUPABASE_SECRET_KEY}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=minimal'
-        },
+        headers,
         body: JSON.stringify({
           course_data: {
             youtube_materials: records,
@@ -203,14 +205,9 @@ export const youtubeScraperService = {
       // 2. Also attempt insert into youtube_materials table if created
       await fetch(`${SUPABASE_URL}/rest/v1/youtube_materials`, {
         method: 'POST',
-        headers: {
-          'apikey': SUPABASE_SECRET_KEY,
-          'Authorization': `Bearer ${SUPABASE_SECRET_KEY}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=minimal'
-        },
+        headers,
         body: JSON.stringify(records)
-      }).catch(() => {/* ignore table absent warning */});
+      }).catch(() => {/* ignore table absent */});
 
     } catch (err) {
       console.warn('Save to Supabase error:', err);
@@ -219,7 +216,7 @@ export const youtubeScraperService = {
 };
 
 /**
- * Utility function to clean and extract topics from syllabus text
+ * Utility function to clean and extract topics from syllabus text stored in Supabase
  */
 function parseAndCleanTopics(rawText: string): string[] {
   if (!rawText) return [];
@@ -270,18 +267,30 @@ function extractSubjectName(rawText: string): string {
   return firstLine.substring(0, 50);
 }
 
+function formatCourseDuration(dur?: string): string {
+  if (!dur) return '00:35:00';
+  if (dur.includes(':')) return dur;
+  const mins = parseInt(dur, 10);
+  if (!isNaN(mins)) {
+    const h = Math.floor(mins / 60).toString().padStart(2, '0');
+    const m = (mins % 60).toString().padStart(2, '0');
+    return `${h}:${m}:00`;
+  }
+  return '00:45:00';
+}
+
 function fallbackVideosForTopics(topics: string[], syllabusId: string): YouTubeMaterialRecord[] {
   return topics.map((topic, idx) => ({
     id: `yt_fallback_${Date.now()}_${idx}`,
     topic,
-    video_title: `${topic} - Full Concept Tutorial`,
+    video_title: `${topic} - Course Tutorial & Practical Implementation`,
     channel_name: 'Computer Science Academy',
-    video_url: `https://www.youtube.com/results?search_query=${encodeURIComponent(topic)}`,
+    video_url: `https://www.youtube.com/results?search_query=${encodeURIComponent(topic + ' course')}`,
     thumbnail_url: `https://i.ytimg.com/vi/Ovhj6qDSF9M/hqdefault.jpg`,
     view_count: 125000,
     likes: 3400,
     published_date: new Date().toISOString(),
-    duration: '00:12:45',
+    duration: '00:42:15',
     video_type: 'video',
     comments_count: 140,
     created_at: new Date().toISOString(),
