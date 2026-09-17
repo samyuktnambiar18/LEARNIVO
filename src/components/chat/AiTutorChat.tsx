@@ -112,16 +112,14 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
       return;
     }
 
-    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-    const fileType = file.type.toLowerCase();
-    const fileName = file.name.toLowerCase();
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg', 'image/pjpeg', 'image/x-png'];
+    const fileType = file.type ? file.type.toLowerCase() : '';
+    const fileName = file.name ? file.name.toLowerCase() : '';
 
     const isSupportedType =
       validTypes.includes(fileType) ||
-      fileName.endsWith('.jpg') ||
-      fileName.endsWith('.jpeg') ||
-      fileName.endsWith('.png') ||
-      fileName.endsWith('.webp');
+      (fileType.startsWith('image/') && !fileType.includes('pdf')) ||
+      /\.(jpg|jpeg|png|webp)$/i.test(fileName);
 
     if (!isSupportedType) {
       setUploadError('Please upload a JPG, JPEG, PNG, or WEBP image.');
@@ -670,7 +668,7 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
           <input
             type="file"
             ref={fileInputRef}
-            accept="image/jpeg,image/jpg,image/png,image/webp"
+            accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp,image/*"
             onChange={handleImageSelect}
             className="hidden"
           />
