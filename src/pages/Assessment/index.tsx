@@ -1,11 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { MainLayout } from '../../components/layout/MainLayout';
 import { AssessmentEngine } from '../../components/practice/AssessmentEngine';
-import { adaptiveLearningService } from '../../services/api/adaptiveLearningService';
+import { adaptiveLearningService, generateSubjectCode } from '../../services/api/adaptiveLearningService';
 import { assessmentHistoryService, AssessmentHistoryRecord } from '../../services/assessmentHistoryService';
+import { storageService } from '../../services/storage/storageService';
 import { AssessmentSuiteData } from '../../types';
 import { Button } from '../../components/ui/Button';
-import { Play, Sparkles, CheckCircle2, AlertCircle, FileCheck2, ArrowRight, Clock, Award, RotateCcw, XCircle, HelpCircle } from 'lucide-react';
+import { Play, Sparkles, CheckCircle2, AlertCircle, FileCheck2, ArrowRight, Clock, Award, RotateCcw, XCircle, HelpCircle, BookOpen } from 'lucide-react';
+
+interface SubjectOption {
+  code: string;
+  name: string;
+}
+
+const DEFAULT_SUBJECTS: SubjectOption[] = [
+  { code: '23ITT201', name: 'DATA STRUCTURES' },
+  { code: '23ITT202', name: 'DATABASE MANAGEMENT SYSTEMS' },
+  { code: '23ITT203', name: 'OPERATING SYSTEMS' },
+  { code: '23ITT204', name: 'COMPUTER NETWORKS' }
+];
 
 export const AssessmentPage: React.FC = () => {
   const [suiteData, setSuiteData] = useState<AssessmentSuiteData | null>(null);
@@ -13,11 +26,80 @@ export const AssessmentPage: React.FC = () => {
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [history, setHistory] = useState<AssessmentHistoryRecord[]>([]);
   const [selectedHistoryRecord, setSelectedHistoryRecord] = useState<AssessmentHistoryRecord | null>(null);
+  const [availableSubjects, setAvailableSubjects] = useState<SubjectOption[]>(DEFAULT_SUBJECTS);
+  const [selectedSubject, setSelectedSubject] = useState<SubjectOption>(DEFAULT_SUBJECTS[0]);
 
-  // Load recent assessment history on page load (DO NOT auto-fetch questions!)
+  // Load recent assessment history & available subjects on page load (DO NOT auto-fetch questions!)
   useEffect(() => {
     loadHistory();
+    initSubjects();
   }, []);
+
+  const initSubjects = () => {
+    const list: SubjectOption[] = [...DEFAULT_SUBJECTS];
+
+    // 1. Discover uploaded subjects from stored materials
+    try {
+      const materials = storageService.getMaterials();
+      materials.forEach(m => {
+        if (m.title) {
+          const upperTitle = m.title.trim().toUpperCase();
+          if (!list.some(s => s.name === upperTitle)) {
+            list.push({
+              code: generateSubjectCode(upperTitle),
+              name: upperTitle
+            });
+          }
+        }
+      });
+    } catch {}
+
+    // 2. Check URL parameters (?subject=...&code=...)
+    let initialSelected = list[0];
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const urlSubName = params.get('subject_name') || params.get('subject') || params.get('course');
+      const urlSubCode = params.get('subject_code') || params.get('code');
+
+      if (urlSubName) {
+        const upperUrlName = urlSubName.trim().toUpperCase();
+        const code = (urlSubCode || generateSubjectCode(upperUrlName)).trim().toUpperCase();
+        const existing = list.find(s => s.name === upperUrlName || s.code === code);
+        if (existing) {
+          initialSelected = existing;
+        } else {
+          const newSub: SubjectOption = { code, name: upperUrlName };
+          list.push(newSub);
+          initialSelected = newSub;
+        }
+      } else {
+        // 3. Check session storage for user preference
+        try {
+          const savedStr = sessionStorage.getItem('learnivo_active_subject');
+          if (savedStr) {
+            const parsed = JSON.parse(savedStr);
+            if (parsed.name && parsed.code) {
+              const matched = list.find(s => s.code === parsed.code) || parsed;
+              initialSelected = matched;
+            }
+          }
+        } catch {}
+      }
+    }
+
+    setAvailableSubjects(list);
+    setSelectedSubject(initialSelected);
+  };
+
+  const handleSubjectChange = (code: string) => {
+    const found = availableSubjects.find(s => s.code === code);
+    if (found) {
+      setSelectedSubject(found);
+      try {
+        sessionStorage.setItem('learnivo_active_subject', JSON.stringify(found));
+      } catch {}
+    }
+  };
 
   const loadHistory = async () => {
     try {
@@ -34,7 +116,10 @@ export const AssessmentPage: React.FC = () => {
     setSelectedHistoryRecord(null);
 
     try {
-      const result = await adaptiveLearningService.fetchAssessmentQuestionsFromWebhook();
+      const result = await adaptiveLearningService.fetchAssessmentQuestionsFromWebhook({
+        subject_code: selectedSubject.code,
+        subject_name: selectedSubject.name
+      });
 
       if (result && result.questions && result.questions.length > 0) {
         setSuiteData(result);
@@ -87,6 +172,9 @@ export const AssessmentPage: React.FC = () => {
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider bg-[#C7FF4A]/10 text-[#C7FF4A] border border-[#C7FF4A]/30 uppercase">
                 Evaluation Engine
               </span>
+              <span className="text-[10px] font-mono text-[#A6A1B2] bg-white/5 px-2 py-0.5 rounded border border-white/10">
+                {selectedSubject.code}
+              </span>
             </div>
             <h2 className="text-3xl font-black text-[#F7F5FA] tracking-tight">
               Evaluation & Assessment
@@ -96,16 +184,33 @@ export const AssessmentPage: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex-shrink-0">
+          <div className="flex-shrink-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            {/* Subject Selector */}
+            <div className="relative">
+              <select
+                value={selectedSubject.code}
+                onChange={(e) => handleSubjectChange(e.target.value)}
+                disabled={isFetchingWebhook}
+                className="w-full sm:w-auto bg-[#181620] border border-white/20 rounded-xl px-3.5 py-3 text-xs text-[#F7F5FA] font-medium focus:outline-none focus:border-[#C7FF4A] shadow-inner cursor-pointer"
+                aria-label="Select Assessment Subject"
+              >
+                {availableSubjects.map((s) => (
+                  <option key={s.code} value={s.code}>
+                    {s.name} ({s.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <Button
               variant="primary"
               isLoading={isFetchingWebhook}
               disabled={isFetchingWebhook}
               onClick={handleTakeAssessment}
-              className="bg-[#C7FF4A] text-black font-extrabold hover:bg-[#b8f533] px-6 py-3 text-sm shadow-xl shadow-[#C7FF4A]/20"
+              className="bg-[#C7FF4A] text-black font-extrabold hover:bg-[#b8f533] px-6 py-3 text-sm shadow-xl shadow-[#C7FF4A]/20 whitespace-nowrap"
             >
               {isFetchingWebhook ? (
-                <>Preparing Your Assessment...</>
+                <>Preparing Assessment...</>
               ) : (
                 <>
                   <Play className="w-4 h-4 mr-2" />

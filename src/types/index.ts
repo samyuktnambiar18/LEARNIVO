@@ -284,13 +284,18 @@ export interface UserAssessmentAnswers {
   [question_number: number]: string;
 }
 
-export interface FinalAssessmentScore {
-  total: number;
-  correct: number;
-  wrong: number;
-  unanswered: number;
-  score: number;
-  percentage: number;
+export interface AssessmentSubmissionAnswer {
+  question_number: number;
+  selected_answer: string;
 }
+
+export interface AssessmentSubmissionPayload {
+  action: 'submit_assessment';
+  subject_code: string;
+  subject_name: string;
+  total_questions: number;
+  answers: AssessmentSubmissionAnswer[];
+}
+
 
 

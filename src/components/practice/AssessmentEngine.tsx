@@ -27,8 +27,11 @@ import {
 import {
   AssessmentSuiteData,
   NormalizedAssessmentQuestion,
-  UserAssessmentAnswers
+  UserAssessmentAnswers,
+  AssessmentSubmissionPayload,
+  AssessmentSubmissionAnswer
 } from '../../types';
+import { adaptiveLearningService } from '../../services/api/adaptiveLearningService';
 import { assessmentHistoryService, AssessmentHistoryRecord, QuestionReviewDetail } from '../../services/assessmentHistoryService';
 import { ProctoringManager, CameraStatus, FaceStatus, ProctoringViolationEvent, ViolationType } from '../../services/proctoring/ProctoringManager';
 import { Button } from '../ui/Button';
@@ -389,10 +392,42 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
     }
   };
 
-  const handleFinishAssessment = async () => {
-    if (isSubmitting || stage === 'terminated') return;
-    setIsSubmitting(true);
+  const hasSubmittedRef = useRef<boolean>(false);
 
+  const handleFinishAssessment = async () => {
+    if (isSubmitting || hasSubmittedRef.current || stage === 'terminated') return;
+    setIsSubmitting(true);
+    hasSubmittedRef.current = true;
+
+    const total = total_questions || questions.length;
+
+    // 1. Build dynamic answers array for every question
+    const submissionAnswers: AssessmentSubmissionAnswer[] = questions.map(q => {
+      const userChoice = userAnswers[q.question_number];
+      return {
+        question_number: q.question_number,
+        selected_answer: userChoice !== undefined && userChoice !== null ? String(userChoice) : ''
+      };
+    });
+
+    // 2. Dispatch ONE dynamic final submission request to SNS Workbench webhook
+    const submissionPayload: AssessmentSubmissionPayload = {
+      action: 'submit_assessment',
+      subject_code,
+      subject_name,
+      total_questions: total,
+      answers: submissionAnswers
+    };
+
+    console.log('DISPATCHING FINAL ASSESSMENT SUBMISSION TO SNS WORKBENCH:', JSON.stringify(submissionPayload, null, 2));
+
+    try {
+      await adaptiveLearningService.submitAssessment(submissionPayload);
+    } catch (submitErr) {
+      console.warn('SNS Workbench submission webhook note:', submitErr);
+    }
+
+    // 3. Compute local evaluation details for immediate, consistent UI result display
     let correctCount = 0;
     let wrongCount = 0;
     let unansweredCount = 0;
@@ -419,7 +454,6 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
       };
     });
 
-    const total = total_questions || questions.length;
     const percentage = total > 0 ? Math.round((correctCount / total) * 100) : 0;
     const score = correctCount;
 
