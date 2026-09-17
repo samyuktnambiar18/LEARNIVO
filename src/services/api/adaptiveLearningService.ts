@@ -1,5 +1,5 @@
 import { parseAdaptiveLearningResponse } from '../../utils/adapters';
-import { AdaptiveLearningResult, PracticeAttempt, Question } from '../../types';
+import { AdaptiveLearningResult, PracticeAttempt, Question, AssessmentSuiteData, NormalizedAssessmentQuestion, NormalizedAssessmentOption } from '../../types';
 import { supabase } from '../supabase';
 
 const ADAPTIVE_LEARNING_WEBHOOK_URL =
@@ -155,7 +155,7 @@ export const adaptiveLearningService = {
   /**
    * Triggers the Attend Assessment webhook and parses questions
    */
-  fetchAssessmentQuestionsFromWebhook: async (): Promise<Question[]> => {
+  fetchAssessmentQuestionsFromWebhook: async (): Promise<AssessmentSuiteData | null> => {
     const WEBHOOK_URL = 'https://api.agents.snsihub.ai/webhook/fbe93af0-6a48-4500-8768-788623f218ca';
     try {
       const response = await fetch(WEBHOOK_URL, {
@@ -186,18 +186,18 @@ export const adaptiveLearningService = {
       }
 
       console.log('ATTEND ASSESSMENT WEBHOOK RAW RESPONSE:', data);
-      const parsed = parseQuestionsFromWebhook(data);
-      console.log('PARSED QUESTIONS COUNT FROM WEBHOOK:', parsed.length);
-      return parsed;
+      const parsedSuite = parseAssessmentPayload(data);
+      console.log('PARSED ASSESSMENT SUITE:', parsedSuite);
+      return parsedSuite;
     } catch (error) {
       console.error('Attend Assessment webhook fetch error:', error);
-      return [];
+      return null;
     }
   }
 };
 
-export function extractQuestionsArrayFromPayload(data: any): any[] {
-  if (!data) return [];
+export function parseAssessmentPayload(rawData: any): AssessmentSuiteData | null {
+  if (!rawData) return null;
 
   const tryParseJson = (val: any) => {
     if (typeof val === 'string') {
@@ -217,7 +217,7 @@ export function extractQuestionsArrayFromPayload(data: any): any[] {
     return val;
   };
 
-  const parsedData = tryParseJson(data);
+  const parsedData = tryParseJson(rawData);
   const candidates: any[] = [];
 
   if (Array.isArray(parsedData)) {
@@ -226,113 +226,126 @@ export function extractQuestionsArrayFromPayload(data: any): any[] {
     candidates.push(parsedData);
   }
 
+  let foundContainer: any = null;
+  let questionsArray: any[] | null = null;
+
   for (const c of candidates) {
     if (!c || typeof c !== 'object') continue;
 
-    if (Array.isArray(c.questions)) return c.questions;
+    if (Array.isArray(c.questions)) {
+      foundContainer = c;
+      questionsArray = c.questions;
+      break;
+    }
 
     const subWrappers = [
       c._RESPONSEDATA,
       c.responseData,
-      c.body,
       c.output,
-      c.result,
       c.data,
+      c.result,
+      c.body,
       c.payload,
-      c.text,
-      c.response
+      c.response,
+      c.text
     ];
 
     for (const sub of subWrappers) {
       if (!sub) continue;
       const parsedSub = tryParseJson(sub);
       if (parsedSub && typeof parsedSub === 'object') {
-        if (Array.isArray(parsedSub.questions)) return parsedSub.questions;
-        if (Array.isArray(parsedSub)) return parsedSub;
+        if (Array.isArray(parsedSub.questions)) {
+          foundContainer = parsedSub;
+          questionsArray = parsedSub.questions;
+          break;
+        }
+      }
+    }
+    if (questionsArray) break;
+  }
+
+  if (!questionsArray && Array.isArray(parsedData) && parsedData.length > 0 && (parsedData[0].question || parsedData[0].question_number)) {
+    foundContainer = { subject_code: '23ITT201', subject_name: 'DATA STRUCTURES', total_questions: parsedData.length, questions: parsedData };
+    questionsArray = parsedData;
+  }
+
+  if (!questionsArray || questionsArray.length === 0) {
+    return null;
+  }
+
+  const subject_code = String(foundContainer?.subject_code || foundContainer?.subjectCode || '23ITT201');
+  const subject_name = String(foundContainer?.subject_name || foundContainer?.subjectName || 'DATA STRUCTURES');
+  const total_questions = Number(foundContainer?.total_questions || foundContainer?.totalQuestions || questionsArray.length);
+
+  const normalizedQuestions: NormalizedAssessmentQuestion[] = questionsArray.map((q: any, idx: number) => {
+    const qNum = Number(q.question_number || q.number || (idx + 1));
+    const unit = String(q.unit || `UNIT ${Math.ceil(qNum / 2)}`);
+    const topic = String(q.topic || q.concept || subject_name);
+    const difficulty = String(q.difficulty || 'Medium');
+    const questionText = String(q.question || q.questionText || q.prompt || `Question ${qNum}`);
+
+    const optionsList: NormalizedAssessmentOption[] = [];
+
+    if (q.options && typeof q.options === 'object' && !Array.isArray(q.options)) {
+      Object.entries(q.options).forEach(([k, v]) => {
+        if (v !== undefined && v !== null) {
+          optionsList.push({
+            key: String(k).trim().toUpperCase(),
+            text: String(v).trim()
+          });
+        }
+      });
+    } else if (Array.isArray(q.options)) {
+      const keys = ['A', 'B', 'C', 'D', 'E', 'F'];
+      q.options.forEach((optText: any, optIdx: number) => {
+        optionsList.push({
+          key: keys[optIdx] || String(optIdx + 1),
+          text: String(optText).trim()
+        });
+      });
+    } else {
+      optionsList.push(
+        { key: 'A', text: 'Option A' },
+        { key: 'B', text: 'Option B' },
+        { key: 'C', text: 'Option C' },
+        { key: 'D', text: 'Option D' }
+      );
+    }
+
+    optionsList.sort((a, b) => a.key.localeCompare(b.key));
+
+    let correctAnswerKey = String(q.correct_answer || q.correctAnswer || q.answer || 'A').trim();
+
+    const matchedByKey = optionsList.find(o => o.key.toUpperCase() === correctAnswerKey.toUpperCase());
+    if (matchedByKey) {
+      correctAnswerKey = matchedByKey.key;
+    } else {
+      const matchedByText = optionsList.find(o => o.text.toLowerCase() === correctAnswerKey.toLowerCase());
+      if (matchedByText) {
+        correctAnswerKey = matchedByText.key;
       }
     }
 
-    if (c.question || c.questionText || c.question_number || c.question_text) {
-      return candidates;
-    }
-  }
-
-  if (Array.isArray(parsedData) && parsedData.length > 0 && (parsedData[0].question || parsedData[0].question_number || parsedData[0].questionText)) {
-    return parsedData;
-  }
-
-  return [];
-}
-
-export function parseQuestionsFromWebhook(data: any): Question[] {
-  if (!data) return [];
-
-  let subjectName = 'Data Structures & Engineering';
-  if (data) {
-    const root = Array.isArray(data) ? data[0] : data;
-    const inner = root?._RESPONSEDATA || root?.responseData || root?.body || root?.output || root;
-    if (inner?.subject_name) subjectName = inner.subject_name;
-    if (inner?.subject_code) subjectName = `${inner.subject_code} - ${subjectName}`;
-  }
-
-  const rawList = extractQuestionsArrayFromPayload(data);
-  if (!rawList || rawList.length === 0) return [];
-
-  return rawList.map((item: any, idx: number) => {
-    const questionText = String(
-      item.question ||
-      item.questionText ||
-      item.question_text ||
-      item.prompt ||
-      item.title ||
-      `Question ${item.question_number || (idx + 1)}`
-    );
-
-    const rawOpts = Array.isArray(item.options)
-      ? item.options
-      : Array.isArray(item.choices)
-      ? item.choices
-      : Array.isArray(item.answers)
-      ? item.answers
-      : [];
-
-    const options = rawOpts.map((o: any) => String(o).trim());
-
-    let correctAnswer = String(
-      item.correctAnswer ||
-      item.correct_answer ||
-      item.answer ||
-      item.solution ||
-      item.correct_option_text ||
-      (options[0] || '')
-    ).trim();
-
-    if (typeof item.correct_option === 'number' && options[item.correct_option]) {
-      correctAnswer = options[item.correct_option];
-    } else if (typeof item.correct_index === 'number' && options[item.correct_index]) {
-      correctAnswer = options[item.correct_index];
-    } else if (/^\d+$/.test(correctAnswer)) {
-      const parsedIdx = parseInt(correctAnswer, 10);
-      if (options[parsedIdx]) {
-        correctAnswer = options[parsedIdx];
-      } else if (parsedIdx > 0 && options[parsedIdx - 1]) {
-        correctAnswer = options[parsedIdx - 1];
-      }
-    }
-
-    const topic = item.topic || item.subject || subjectName;
+    const explanation = String(q.explanation || q.solution || `The correct answer is Option ${correctAnswerKey}.`);
 
     return {
-      id: String(item.id || item.question_id || item.question_number || `wh_q_${idx + 1}`),
+      question_number: qNum,
+      unit,
       topic,
-      difficulty: item.difficulty || (idx % 3 === 0 ? 'Easy' : idx % 3 === 1 ? 'Medium' : 'Hard'),
-      questionText,
-      options: options.length > 0 ? options : ['Option A', 'Option B', 'Option C', 'Option D'],
-      correctAnswer,
-      explanation: item.explanation || item.solution_explanation || `Correct Answer: ${correctAnswer}`,
-      hint: item.hint
+      difficulty,
+      question: questionText,
+      options: optionsList,
+      correct_answer: correctAnswerKey,
+      explanation
     };
   });
+
+  return {
+    subject_code,
+    subject_name,
+    total_questions: total_questions || normalizedQuestions.length,
+    questions: normalizedQuestions
+  };
 }
 
 export function parseAssessmentEvaluationResponse(raw: any, totalQuestions: number = 10): AssessmentEvaluationResult {

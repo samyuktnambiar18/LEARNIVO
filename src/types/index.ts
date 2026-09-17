@@ -206,4 +206,58 @@ export interface MagicViewResult {
   errorMessage?: string;
 }
 
+export interface AssessmentWebhookQuestion {
+  question_number?: number;
+  unit?: string;
+  topic?: string;
+  difficulty?: string;
+  question?: string;
+  options?: Record<string, string> | string[];
+  correct_answer?: string;
+  explanation?: string;
+}
+
+export interface AssessmentWebhookResponse {
+  subject_code?: string;
+  subject_name?: string;
+  total_questions?: number;
+  questions?: AssessmentWebhookQuestion[];
+}
+
+export interface NormalizedAssessmentOption {
+  key: string;
+  text: string;
+}
+
+export interface NormalizedAssessmentQuestion {
+  question_number: number;
+  unit: string;
+  topic: string;
+  difficulty: string;
+  question: string;
+  options: NormalizedAssessmentOption[];
+  correct_answer: string;
+  explanation: string;
+}
+
+export interface AssessmentSuiteData {
+  subject_code: string;
+  subject_name: string;
+  total_questions: number;
+  questions: NormalizedAssessmentQuestion[];
+}
+
+export interface UserAssessmentAnswers {
+  [question_number: number]: string;
+}
+
+export interface FinalAssessmentScore {
+  total: number;
+  correct: number;
+  wrong: number;
+  unanswered: number;
+  score: number;
+  percentage: number;
+}
+
 

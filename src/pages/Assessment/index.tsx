@@ -2,38 +2,47 @@ import React, { useState } from 'react';
 import { MainLayout } from '../../components/layout/MainLayout';
 import { AssessmentEngine } from '../../components/practice/AssessmentEngine';
 import { adaptiveLearningService } from '../../services/api/adaptiveLearningService';
-import { Question } from '../../types';
+import { AssessmentSuiteData } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { Play, Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
 
 export const AssessmentPage: React.FC = () => {
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [isFetchingWebhook, setIsFetchingWebhook] = useState(false);
-  const [engineKey, setEngineKey] = useState(0);
+  const [suiteData, setSuiteData] = useState<AssessmentSuiteData | null>(null);
+  const [isFetchingWebhook, setIsFetchingWebhook] = useState<boolean>(false);
+  const [engineKey, setEngineKey] = useState<number>(0);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   const handleAttendAssessment = async () => {
     setIsFetchingWebhook(true);
     setStatusMessage(null);
 
-    const fetchedQuestions = await adaptiveLearningService.fetchAssessmentQuestionsFromWebhook();
+    try {
+      const result = await adaptiveLearningService.fetchAssessmentQuestionsFromWebhook();
 
-    if (fetchedQuestions && fetchedQuestions.length > 0) {
-      setQuestions(fetchedQuestions);
+      if (result && result.questions && result.questions.length > 0) {
+        setSuiteData(result);
+        setStatusMessage({
+          text: `Successfully loaded ${result.questions.length} assessment questions for ${result.subject_name} (${result.subject_code})!`,
+          type: 'success'
+        });
+      } else {
+        setSuiteData(null);
+        setStatusMessage({
+          text: 'Webhook endpoint returned no questions or workflow is inactive.',
+          type: 'error'
+        });
+      }
+    } catch (err) {
+      console.error('Failed to fetch assessment suite:', err);
+      setSuiteData(null);
       setStatusMessage({
-        text: `Successfully fetched ${fetchedQuestions.length} test questions from assessment webhook!`,
-        type: 'success'
-      });
-    } else {
-      setQuestions([]);
-      setStatusMessage({
-        text: 'Webhook endpoint returned no questions or workflow is inactive (URL: https://api.agents.snsihub.ai/webhook/fbe93af0-6a48-4500-8768-788623f218ca).',
+        text: 'Failed to connect to assessment webhook. Please try again.',
         type: 'error'
       });
+    } finally {
+      setEngineKey(prev => prev + 1);
+      setIsFetchingWebhook(false);
     }
-
-    setEngineKey(prev => prev + 1);
-    setIsFetchingWebhook(false);
   };
 
   return (
@@ -46,7 +55,7 @@ export const AssessmentPage: React.FC = () => {
               <Sparkles className="w-5 h-5 text-[#C7FF4A]" />
             </h2>
             <p className="text-xs text-[#A6A1B2]">
-              Trigger the assessment webhook to load and attend evaluation tests.
+              Trigger the assessment webhook to load dynamic evaluation questions and attempt your test.
             </p>
           </div>
 
@@ -80,7 +89,7 @@ export const AssessmentPage: React.FC = () => {
 
         <AssessmentEngine
           key={engineKey}
-          questions={questions}
+          suiteData={suiteData}
           onAttendClick={handleAttendAssessment}
           isFetchingWebhook={isFetchingWebhook}
         />
