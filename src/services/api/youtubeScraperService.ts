@@ -1,4 +1,3 @@
-import { supabase } from '../supabase';
 import { YouTubeMaterialRecord } from '../../types';
 
 const decodeKey = (str: string) => {
@@ -31,7 +30,6 @@ export const youtubeScraperService = {
   /**
    * Fetch the MOST RECENTLY updated/created syllabus data from Supabase
    * sorted by created_at DESC LIMIT 1.
-   * Tries secure Vercel API endpoint /api/youtube first, with direct client fallback.
    */
   getLatestSyllabusAndMaterials: async (forceRefresh: boolean = false, maxRetries: number = 3): Promise<LatestSyllabusData | null> => {
     // 1. Try secure backend serverless API endpoint /api/youtube first
@@ -59,25 +57,24 @@ export const youtubeScraperService = {
       console.warn('Call to /api/youtube backend endpoint failed, trying direct Supabase fallback:', apiErr);
     }
 
-    // 2. Direct Supabase Client Fallback
+    // 2. Direct Supabase Client Fallback using Secret Key REST query
     let latestCourse: any = null;
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
-        const { data: latestCourses, error: courseErr } = await supabase
-          .from('courses')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(1);
+        const headers = {
+          'apikey': SUPABASE_SECRET_KEY,
+          'Authorization': `Bearer ${SUPABASE_SECRET_KEY}`
+        };
 
-        if (courseErr) {
-          console.warn(`Supabase courses query attempt ${attempt + 1} warning:`, courseErr);
-        }
-
-        if (latestCourses && latestCourses.length > 0) {
-          latestCourse = latestCourses[0];
-          if (latestCourse.subject && latestCourse.subject.trim().length > 0) {
-            break;
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/courses?select=*&order=created_at.desc&limit=1`, { headers });
+        if (res.ok) {
+          const rows = await res.json();
+          if (rows && rows.length > 0) {
+            latestCourse = rows[0];
+            if (latestCourse.subject && latestCourse.subject.trim().length > 0) {
+              break;
+            }
           }
         }
       } catch (err) {
@@ -150,7 +147,7 @@ export const youtubeScraperService = {
   },
 
   /**
-   * Run Apify YouTube Scraper (streamers/youtube-scraper) with maxResults = 1
+   * Run Apify YouTube Scraper (streamers/youtube-scraper) with token query parameter and maxResults = 1
    */
   runApifyScraper: async (topics: string[], syllabusId: string): Promise<YouTubeMaterialRecord[]> => {
     if (!topics || topics.length === 0) return [];
@@ -159,11 +156,11 @@ export const youtubeScraperService = {
     const searchQueries = targetTopics.map(t => `${t} course tutorial`);
 
     try {
-      const response = await fetch('https://api.apify.com/v2/acts/streamers~youtube-scraper/run-sync-get-dataset-items', {
+      const apifyUrl = `https://api.apify.com/v2/acts/streamers~youtube-scraper/run-sync-get-dataset-items?token=${APIFY_API_TOKEN}`;
+      const response = await fetch(apifyUrl, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${APIFY_API_TOKEN}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           searchQueries,
