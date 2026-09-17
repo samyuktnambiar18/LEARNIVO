@@ -167,7 +167,7 @@ export const authService = {
 
 
   getGoogleClientId: (): string => {
-    return import.meta.env.VITE_GOOGLE_CLIENT_ID || '855964443923-7osg31lt6qj81rii2p4u9anets1ni8bm.apps.googleusercontent.com';
+    return import.meta.env.VITE_GOOGLE_CLIENT_ID || '1038478166086-cegsniu6uj5nnc4kk69elej0ip8h1efq.apps.googleusercontent.com';
   },
 
   handleGoogleCredential: async (credential: string): Promise<User> => {
