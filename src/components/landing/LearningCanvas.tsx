@@ -1,132 +1,189 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
+import { Sparkles, Sliders, Eye, Target, Code } from 'lucide-react';
+import { LearnivoLogo } from '../ui/LearnivoLogo';
 
 export const LearningCanvas: React.FC = () => {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    let animationFrameId: number;
-    let width = (canvas.width = canvas.parentElement?.clientWidth || 600);
-    let height = (canvas.height = 420);
-
-    const handleResize = () => {
-      if (!canvas || !canvas.parentElement) return;
-      width = canvas.width = canvas.parentElement.clientWidth;
-      height = canvas.height = 420;
-    };
-
-    window.addEventListener('resize', handleResize);
-
-    // Knowledge Nodes representing: Understand -> Practice -> Evaluate -> Improve
-    const nodes = [
-      { x: width * 0.2, y: height * 0.5, label: 'Understand', symbol: '∑x', color: '#C7FF4A' },
-      { x: width * 0.4, y: height * 0.35, label: 'Practice', symbol: '</>', color: '#8B5CF6' },
-      { x: width * 0.6, y: height * 0.65, label: 'Evaluate', symbol: 'f(x)', color: '#FF6B9D' },
-      { x: width * 0.8, y: height * 0.5, label: 'Improve', symbol: 'Δy', color: '#C7FF4A' },
-    ];
-
-    // Ambient Floating Math/Code Particles
-    const symbols = ['∫', 'λ', 'O(n log n)', '∇', 'π', 'A=UΣVᵀ', 'log₂(n)', '∀x∈ℝ'];
-    const floating = symbols.map((text, i) => ({
-      text,
-      x: (width * (i + 1)) / (symbols.length + 1),
-      y: Math.random() * height,
-      speed: 0.2 + Math.random() * 0.3,
-      opacity: 0.15 + Math.random() * 0.2,
-    }));
-
-    let pulse = 0;
-
-    const render = () => {
-      ctx.clearRect(0, 0, width, height);
-      pulse += 0.02;
-
-      // Draw Connection Paths with flow animation
-      ctx.beginPath();
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-      ctx.lineWidth = 2;
-      ctx.moveTo(nodes[0].x, nodes[0].y);
-      ctx.bezierCurveTo(width * 0.3, height * 0.2, width * 0.3, height * 0.4, nodes[1].x, nodes[1].y);
-      ctx.bezierCurveTo(width * 0.5, height * 0.3, width * 0.5, height * 0.7, nodes[2].x, nodes[2].y);
-      ctx.bezierCurveTo(width * 0.7, height * 0.6, width * 0.7, height * 0.4, nodes[3].x, nodes[3].y);
-      ctx.stroke();
-
-      // Pulse traveling node signal
-      const signalProgress = (Math.sin(pulse * 0.8) + 1) / 2;
-      const currentX = nodes[0].x + signalProgress * (nodes[3].x - nodes[0].x);
-      const currentY = height * 0.5 + Math.sin(signalProgress * Math.PI * 2) * 40;
-
-      ctx.beginPath();
-      ctx.arc(currentX, currentY, 4, 0, Math.PI * 2);
-      ctx.fillStyle = '#C7FF4A';
-      ctx.shadowColor = '#C7FF4A';
-      ctx.shadowBlur = 10;
-      ctx.fill();
-      ctx.shadowBlur = 0;
-
-      // Draw Floating Math Text
-      floating.forEach(p => {
-        p.y -= p.speed;
-        if (p.y < 0) p.y = height;
-
-        ctx.font = '12px "JetBrains Mono", monospace';
-        ctx.fillStyle = `rgba(166, 161, 178, ${p.opacity})`;
-        ctx.fillText(p.text, p.x, p.y);
-      });
-
-      // Draw Main Nodes
-      nodes.forEach((node, index) => {
-        const nodePulse = Math.sin(pulse + index) * 3;
-
-        // Outer aura ring
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, 24 + nodePulse, 0, Math.PI * 2);
-        ctx.fillStyle = `${node.color}0D`;
-        ctx.strokeStyle = `${node.color}33`;
-        ctx.lineWidth = 1;
-        ctx.fill();
-        ctx.stroke();
-
-        // Node Circle
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, 16, 0, Math.PI * 2);
-        ctx.fillStyle = '#121118';
-        ctx.strokeStyle = node.color;
-        ctx.lineWidth = 1.5;
-        ctx.fill();
-        ctx.stroke();
-
-        // Symbol Inside
-        ctx.font = '600 11px "JetBrains Mono", monospace';
-        ctx.fillStyle = node.color;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(node.symbol, node.x, node.y);
-
-        // Label Underneath
-        ctx.font = '500 12px "Inter", sans-serif';
-        ctx.fillStyle = '#F7F5FA';
-        ctx.fillText(node.label, node.x, node.y + 34);
-      });
-
-      animationFrameId = requestAnimationFrame(render);
-    };
-
-    render();
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      cancelAnimationFrame(animationFrameId);
-    };
-  }, []);
-
   return (
-    <div className="w-full relative flex items-center justify-center surface-card p-4 overflow-hidden border border-white/10 rounded-2xl bg-[#0B0A0F]/60">
-      <canvas ref={canvasRef} className="w-full h-[420px]" />
+    <div className="w-full relative flex items-center justify-center p-2 sm:p-6 select-none">
+      {/* Background Ambient Glows */}
+      <div className="absolute w-72 h-72 rounded-full bg-[#C7FF4A]/10 blur-[100px] pointer-events-none top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+      <div className="absolute w-80 h-80 rounded-full bg-[#8B5CF6]/15 blur-[120px] pointer-events-none top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+
+      {/* Main Container for Central Visual */}
+      <div className="w-full max-w-[560px] aspect-[4/3.8] sm:aspect-square relative flex items-center justify-center">
+
+        {/* SVG Connecting Curved Lines & Pulse Rays */}
+        <svg className="absolute inset-0 w-full h-full pointer-events-none z-10 overflow-visible">
+          <defs>
+            {/* Gradients for Glowing Connecting Lines */}
+            <linearGradient id="grad-lime-violet" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#C7FF4A" stopOpacity="0.8" />
+              <stop offset="100%" stopColor="#8B5CF6" stopOpacity="0.8" />
+            </linearGradient>
+
+            <linearGradient id="grad-violet" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.9" />
+              <stop offset="100%" stopColor="#C7FF4A" stopOpacity="0.4" />
+            </linearGradient>
+
+            <linearGradient id="grad-blue" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#38BDF8" stopOpacity="0.8" />
+              <stop offset="100%" stopColor="#C7FF4A" stopOpacity="0.5" />
+            </linearGradient>
+
+            <linearGradient id="grad-purple" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#A855F7" stopOpacity="0.8" />
+              <stop offset="100%" stopColor="#8B5CF6" stopOpacity="0.5" />
+            </linearGradient>
+
+            {/* Glowing Drop Shadows */}
+            <filter id="glow-lime" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+          </defs>
+
+          {/* Connected Curves from outer 5 nodes to center (50% 50%) */}
+          {/* Node 1: AI Tutor (Top Left ~ 20% 18%) */}
+          <path
+            d="M 120 70 Q 200 130 280 240"
+            stroke="url(#grad-violet)"
+            strokeWidth="1.5"
+            fill="none"
+            className="animate-line-flow opacity-70"
+            filter="url(#glow-lime)"
+          />
+
+          {/* Node 2: Adaptive Learning (Top Right ~ 80% 18%) */}
+          <path
+            d="M 440 70 Q 360 130 280 240"
+            stroke="url(#grad-lime-violet)"
+            strokeWidth="1.5"
+            fill="none"
+            className="animate-line-flow opacity-75"
+            filter="url(#glow-lime)"
+          />
+
+          {/* Node 3: Magic View (Middle Left ~ 12% 55%) */}
+          <path
+            d="M 90 260 Q 185 250 280 240"
+            stroke="url(#grad-blue)"
+            strokeWidth="1.5"
+            fill="none"
+            className="animate-line-flow opacity-70"
+          />
+
+          {/* Node 4: Assessment (Middle Right ~ 88% 55%) */}
+          <path
+            d="M 470 260 Q 375 250 280 240"
+            stroke="url(#grad-purple)"
+            strokeWidth="1.5"
+            fill="none"
+            className="animate-line-flow opacity-75"
+          />
+
+          {/* Node 5: Practice (Bottom Center ~ 50% 88%) */}
+          <path
+            d="M 280 410 Q 280 325 280 240"
+            stroke="url(#grad-lime-violet)"
+            strokeWidth="1.5"
+            fill="none"
+            className="animate-line-flow opacity-80"
+            filter="url(#glow-lime)"
+          />
+
+          {/* Concentric Decorative Circular Lines */}
+          <circle cx="280" cy="240" r="160" stroke="rgba(255, 255, 255, 0.05)" strokeWidth="1" fill="none" strokeDasharray="4 8" />
+          <circle cx="280" cy="240" r="110" stroke="rgba(199, 255, 74, 0.12)" strokeWidth="1" fill="none" />
+          <circle cx="280" cy="240" r="70" stroke="rgba(139, 92, 246, 0.2)" strokeWidth="1.5" fill="none" strokeDasharray="3 6" />
+        </svg>
+
+        {/* Central Glowing AI Core */}
+        <div className="absolute top-[48%] left-[50%] -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center">
+          {/* Outer Pulsing Glow Rings */}
+          <div className="w-36 h-36 sm:w-44 sm:h-44 rounded-full border border-[#C7FF4A]/20 bg-[#C7FF4A]/5 animate-pulse-glow absolute pointer-events-none" />
+          <div className="w-28 h-28 sm:w-34 sm:h-34 rounded-full border border-[#8B5CF6]/30 bg-[#8B5CF6]/10 animate-pulse-subtle absolute pointer-events-none" />
+
+          {/* Core Symbol Badge */}
+          <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-[#0B0A0F] border border-[#C7FF4A]/50 flex items-center justify-center shadow-[0_0_30px_rgba(199,255,74,0.35)] transition-transform duration-300 hover:scale-105">
+            <LearnivoLogo size={42} showWordmark={false} />
+            <div className="absolute -top-1 -right-1 w-3 h-3 bg-[#C7FF4A] rounded-full animate-ping opacity-75" />
+            <div className="absolute -top-1 -right-1 w-3 h-3 bg-[#C7FF4A] rounded-full shadow-[0_0_10px_#C7FF4A]" />
+          </div>
+
+          <div className="mt-3 px-3 py-1 rounded-full bg-[#121118]/90 border border-white/10 shadow-lg text-[10px] sm:text-xs font-mono tracking-widest text-[#C7FF4A] uppercase font-bold backdrop-blur-md">
+            LEARNIVO CORE
+          </div>
+        </div>
+
+        {/* Outer 5 Connected Feature Nodes */}
+
+        {/* Node 1: AI Tutor (Top Left) */}
+        <div className="absolute top-[3%] left-[2%] sm:left-[5%] z-20 animate-float-1">
+          <div className="px-3.5 py-2.5 rounded-xl bg-[#121118]/90 border border-[#8B5CF6]/40 backdrop-blur-md shadow-[0_0_20px_rgba(139,92,246,0.2)] hover:border-[#8B5CF6] transition-all flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-[#8B5CF6]/15 border border-[#8B5CF6]/30 flex items-center justify-center text-[#8B5CF6]">
+              <Sparkles className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-xs sm:text-sm font-bold text-[#F7F5FA]">AI Tutor</div>
+              <div className="text-[10px] sm:text-xs text-[#A6A1B2]">Ask. Learn. Grow.</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Node 2: Adaptive Learning (Top Right) */}
+        <div className="absolute top-[3%] right-[2%] sm:right-[5%] z-20 animate-float-2">
+          <div className="px-3.5 py-2.5 rounded-xl bg-[#121118]/90 border border-[#C7FF4A]/40 backdrop-blur-md shadow-[0_0_20px_rgba(199,255,74,0.2)] hover:border-[#C7FF4A] transition-all flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-[#C7FF4A]/15 border border-[#C7FF4A]/30 flex items-center justify-center text-[#C7FF4A]">
+              <Sliders className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-xs sm:text-sm font-bold text-[#F7F5FA]">Adaptive Learning</div>
+              <div className="text-[10px] sm:text-xs text-[#C7FF4A]">Personalized for you.</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Node 3: Magic View (Middle Left) */}
+        <div className="absolute top-[52%] left-[0%] sm:left-[2%] -translate-y-1/2 z-20 animate-float-3">
+          <div className="px-3.5 py-2.5 rounded-xl bg-[#121118]/90 border border-[#38BDF8]/40 backdrop-blur-md shadow-[0_0_20px_rgba(56,189,248,0.2)] hover:border-[#38BDF8] transition-all flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-[#38BDF8]/15 border border-[#38BDF8]/30 flex items-center justify-center text-[#38BDF8]">
+              <Eye className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-xs sm:text-sm font-bold text-[#F7F5FA]">Magic View</div>
+              <div className="text-[10px] sm:text-xs text-[#A6A1B2]">See the concept.</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Node 4: Assessment (Middle Right) */}
+        <div className="absolute top-[52%] right-[0%] sm:right-[2%] -translate-y-1/2 z-20 animate-float-1">
+          <div className="px-3.5 py-2.5 rounded-xl bg-[#121118]/90 border border-[#A855F7]/40 backdrop-blur-md shadow-[0_0_20px_rgba(168,85,247,0.2)] hover:border-[#A855F7] transition-all flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-[#A855F7]/15 border border-[#A855F7]/30 flex items-center justify-center text-[#A855F7]">
+              <Target className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-xs sm:text-sm font-bold text-[#F7F5FA]">Assessment</div>
+              <div className="text-[10px] sm:text-xs text-[#A6A1B2]">Track your progress.</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Node 5: Practice (Bottom Center) */}
+        <div className="absolute bottom-[2%] left-1/2 -translate-x-1/2 z-20 animate-float-2">
+          <div className="px-3.5 py-2.5 rounded-xl bg-[#121118]/90 border border-[#C7FF4A]/40 backdrop-blur-md shadow-[0_0_20px_rgba(199,255,74,0.2)] hover:border-[#C7FF4A] transition-all flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-[#C7FF4A]/15 border border-[#C7FF4A]/30 flex items-center justify-center text-[#C7FF4A]">
+              <Code className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-xs sm:text-sm font-bold text-[#F7F5FA]">Practice</div>
+              <div className="text-[10px] sm:text-xs text-[#C7FF4A]">Build real skills.</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
     </div>
   );
 };

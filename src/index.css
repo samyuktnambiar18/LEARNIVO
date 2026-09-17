@@ -75,3 +75,51 @@
 .accent-glow-violet {
   box-shadow: 0 0 25px -5px rgba(139, 92, 246, 0.2);
 }
+
+/* Landing Page Futuristic Animations */
+@keyframes float-1 {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-7px) rotate(0.5deg); }
+}
+
+@keyframes float-2 {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(7px) rotate(-0.5deg); }
+}
+
+@keyframes float-3 {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-9px); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  50% { opacity: 0.75; transform: scale(1.05); }
+}
+
+@keyframes line-flow {
+  0% { stroke-dashoffset: 36; }
+  100% { stroke-dashoffset: 0; }
+}
+
+.animate-float-1 {
+  animation: float-1 5s ease-in-out infinite;
+}
+
+.animate-float-2 {
+  animation: float-2 6.5s ease-in-out infinite;
+}
+
+.animate-float-3 {
+  animation: float-3 7.5s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 4s ease-in-out infinite;
+}
+
+.animate-line-flow {
+  stroke-dasharray: 6 6;
+  animation: line-flow 3s linear infinite;
+}
+
