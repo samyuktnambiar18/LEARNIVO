@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase, supabaseSecret } from './supabase';
 
 export interface QuestionReviewDetail {
   question_number: number;
@@ -38,7 +38,7 @@ const LOCAL_STORAGE_KEY = 'learnivo_assessment_history';
 
 export const assessmentHistoryService = {
   /**
-   * Save a newly completed assessment result to Supabase (evaluation & assessment_history tables) & localStorage
+   * Save a newly completed assessment result to Supabase (evaluations & assessment_history tables) & localStorage
    */
   saveResult: async (record: Omit<AssessmentHistoryRecord, 'id' | 'user_id'>): Promise<AssessmentHistoryRecord> => {
     let userId = 'usr_anonymous';
@@ -68,33 +68,45 @@ export const assessmentHistoryService = {
       console.warn('Failed to save assessment to localStorage:', e);
     }
 
-    // 1. Save to Supabase table `evaluation`
+    // 1. Save to Supabase table `evaluations` using secret key
     try {
-      const attemptedCount = record.total_questions - record.unanswered;
-      const perfLevel = record.percentage >= 80 ? 'Excellent' : record.percentage >= 50 ? 'Good' : 'Needs Practice';
+      const detailsList = record.details || [];
+      const weakTopics = Array.from(new Set(detailsList.filter(d => !d.is_correct && d.topic).map(d => d.topic!)));
+      const strongTopics = Array.from(new Set(detailsList.filter(d => d.is_correct && d.topic).map(d => d.topic!)));
+      const misconceptions = Array.from(new Set(detailsList.filter(d => !d.is_correct && d.explanation).map(d => `${d.question}: ${d.explanation}`)));
+      const knowledgeGaps = Array.from(new Set(weakTopics.map(t => `Needs review: ${t}`)));
 
-      const { error: evalError } = await supabase.from('evaluation').insert([{
-        user_id: userId,
-        assessment_id: assessmentId,
-        subject_code: record.subject_code,
-        subject_name: record.subject_name,
-        total_questions: record.total_questions,
-        attempted_questions: attemptedCount,
+      const evalPayload = {
+        evaluation_id: assessmentId,
+        student_id: userId,
+        document_id: record.subject_code || 'doc_assessment',
+        total_marks: record.total_questions,
+        obtained_marks: record.correct_answers,
+        score: record.score || record.percentage,
         correct_answers: record.correct_answers,
-        wrong_answers: record.wrong_answers,
-        score: record.score,
-        percentage: record.percentage,
-        performance_level: perfLevel,
-        warning_count: record.warning_count || 0,
-        status: record.status || 'completed',
-        created_at: record.completed_at
-      }]);
+        incorrect_answers: record.wrong_answers,
+        weak_topics: weakTopics,
+        strong_topics: strongTopics,
+        misconceptions: misconceptions,
+        knowledge_gaps: knowledgeGaps,
+        final_level: {
+          percentage: record.percentage,
+          status: record.status || 'completed',
+          subject_name: record.subject_name,
+          warning_count: record.warning_count || 0
+        },
+        created_at: record.completed_at || new Date().toISOString()
+      };
+
+      const { error: evalError } = await supabaseSecret.from('evaluations').insert([evalPayload]);
 
       if (evalError) {
-        console.warn('Supabase evaluation insert note:', evalError.message);
+        console.warn('Supabase evaluations insert note:', evalError.message);
+      } else {
+        console.log('Successfully saved assessment result to evaluations table in Supabase.');
       }
     } catch (err) {
-      console.warn('Supabase evaluation insert exception:', err);
+      console.warn('Supabase evaluations insert exception:', err);
     }
 
     // 2. Save to Supabase table `assessment_history`
@@ -195,19 +207,19 @@ export const assessmentHistoryService = {
   },
 
   /**
-   * Fetch evaluation records from Supabase `evaluation` table
+   * Fetch evaluation records from Supabase `evaluations` table
    */
   getEvaluationRecords: async () => {
     try {
       const { data: userData } = await supabase.auth.getUser();
-      if (!userData?.user?.id) return [];
+      const userId = userData?.user?.id;
 
-      const { data, error } = await supabase
-        .from('evaluation')
-        .select('*')
-        .eq('user_id', userData.user.id)
-        .order('created_at', { ascending: false });
+      let query = supabaseSecret.from('evaluations').select('*').order('created_at', { ascending: false });
+      if (userId) {
+        query = query.eq('student_id', userId);
+      }
 
+      const { data, error } = await query;
       if (!error && data) return data;
       return [];
     } catch {
