@@ -27,12 +27,20 @@ export const chatService = {
 
       if (imageFile) {
         const formData = new FormData();
-        formData.append('image', imageFile); // Field name MUST be 'image' for OCR/vision backend
+        const isPdf = imageFile.type === 'application/pdf' || imageFile.name.toLowerCase().endsWith('.pdf');
+
+        formData.append('file', imageFile);
+        formData.append('image', imageFile);
+        if (isPdf) {
+          formData.append('pdf', imageFile);
+          formData.append('filename', imageFile.name);
+        }
+
         if (messageText.trim()) {
           formData.append('message', messageText.trim());
         }
-        formData.append('query', messageText.trim() || 'Explain this image');
-        formData.append('text', messageText.trim() || 'Explain this image');
+        formData.append('query', messageText.trim() || (isPdf ? 'Analyze this PDF document' : 'Explain this image'));
+        formData.append('text', messageText.trim() || (isPdf ? 'Analyze this PDF document' : 'Explain this image'));
         formData.append('student_id', studentId || 'guest_student');
         formData.append('subject', materialTitle || 'General');
         formData.append('timestamp', new Date().toISOString());

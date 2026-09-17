@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Bot, User, PlusCircle, Sparkles, Loader2, BookOpen, Play, Video, ExternalLink, AlertCircle, Eye, Plus, X, Image as ImageIcon } from 'lucide-react';
+import { Send, Bot, User, PlusCircle, Sparkles, Loader2, BookOpen, Play, Video, ExternalLink, AlertCircle, Eye, Plus, X, Image as ImageIcon, FileText } from 'lucide-react';
 import { storageService } from '../../services/storage/storageService';
 import { chatService } from '../../services/api/chatService';
 import { learnivoBackend } from '../../services/api/learnivoBackend';
@@ -22,7 +22,7 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
   const [sessionId, setSessionId] = useState<string>(() => crypto.randomUUID());
   const [dbError, setDbError] = useState<string | null>(null);
 
-  // Image Upload State
+  // File Attachment State (Image / PDF)
   const [selectedImage, setSelectedImage] = useState<{
     file: File;
     previewUrl: string;
@@ -107,22 +107,23 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
     if (!file) return;
 
     if (file.size === 0) {
-      setUploadError('Please upload a valid, non-empty image file.');
+      setUploadError('Please upload a valid, non-empty file.');
       e.target.value = '';
       return;
     }
 
-    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg', 'image/pjpeg', 'image/x-png'];
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg', 'image/pjpeg', 'image/x-png', 'application/pdf'];
     const fileType = file.type ? file.type.toLowerCase() : '';
     const fileName = file.name ? file.name.toLowerCase() : '';
 
     const isSupportedType =
       validTypes.includes(fileType) ||
       (fileType.startsWith('image/') && !fileType.includes('pdf')) ||
-      /\.(jpg|jpeg|png|webp)$/i.test(fileName);
+      fileType === 'application/pdf' ||
+      /\.(jpg|jpeg|png|webp|pdf)$/i.test(fileName);
 
     if (!isSupportedType) {
-      setUploadError('Please upload a JPG, JPEG, PNG, or WEBP image.');
+      setUploadError('Please upload a JPG, JPEG, PNG, WEBP, or PDF file.');
       e.target.value = '';
       return;
     }
@@ -130,7 +131,7 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
     // 10 MB Limit Check
     const MAX_SIZE_BYTES = 10 * 1024 * 1024;
     if (file.size > MAX_SIZE_BYTES) {
-      setUploadError('Image is too large. Please upload an image under 10 MB.');
+      setUploadError('File is too large. Please upload a file under 10 MB.');
       e.target.value = '';
       return;
     }
@@ -577,7 +578,7 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
               <Loader2 className="w-4 h-4 animate-spin" />
               <span>
                 {isAnalyzingImage
-                  ? 'Analyzing image...'
+                  ? (selectedImage?.file.type === 'application/pdf' || selectedImage?.file.name.toLowerCase().endsWith('.pdf') ? 'Analyzing PDF document...' : 'Analyzing image...')
                   : activeMode === 'magic_view'
                   ? 'Creating your visual explanation...'
                   : 'AI Tutor is communicating with SNS Agent Workbench...'}
@@ -615,15 +616,21 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
           </div>
         )}
 
-        {/* Selected Image Thumbnail Preview Bar */}
+        {/* Selected File (Image / PDF) Preview Bar */}
         {selectedImage && (
           <div className="flex items-center gap-2">
             <div className="relative bg-[#181620] p-1.5 rounded-xl border border-white/10 flex items-center gap-2.5 pr-3 shadow-lg">
-              <img
-                src={selectedImage.previewUrl}
-                alt="Doubt image preview"
-                className="w-12 h-12 object-cover rounded-lg border border-white/10"
-              />
+              {selectedImage.file.type === 'application/pdf' || selectedImage.file.name.toLowerCase().endsWith('.pdf') ? (
+                <div className="w-12 h-12 rounded-lg bg-red-500/20 border border-red-500/30 flex items-center justify-center text-red-400 flex-shrink-0">
+                  <FileText className="w-6 h-6" />
+                </div>
+              ) : (
+                <img
+                  src={selectedImage.previewUrl}
+                  alt="Doubt attachment preview"
+                  className="w-12 h-12 object-cover rounded-lg border border-white/10"
+                />
+              )}
               <div className="text-xs space-y-0.5 max-w-[180px] truncate">
                 <p className="font-semibold text-[#F7F5FA] text-[11px] truncate">{selectedImage.file.name}</p>
                 <p className="text-[10px] text-[#A6A1B2]">
@@ -635,8 +642,8 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
               <button
                 type="button"
                 onClick={handleRemoveImage}
-                aria-label="Remove attached image"
-                title="Remove attached image"
+                aria-label="Remove attached file"
+                title="Remove attached file"
                 className="w-5 h-5 rounded-full bg-red-500/80 hover:bg-red-600 text-white flex items-center justify-center text-xs ml-1 transition-all"
               >
                 ×
@@ -652,15 +659,15 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
           }}
           className="flex items-center gap-2.5"
         >
-          {/* '+' Image Attachment Button */}
+          {/* '+' Attachment Button (Image or PDF) */}
           <button
             type="button"
             onClick={() => {
               setUploadError(null);
               fileInputRef.current?.click();
             }}
-            aria-label="Upload image"
-            title="Upload image"
+            aria-label="Upload file (Image or PDF)"
+            title="Upload file (Image or PDF)"
             className="p-3 rounded-lg bg-[#181620] border border-white/10 text-[#A6A1B2] hover:text-[#C7FF4A] hover:border-[#C7FF4A]/40 transition-all flex items-center justify-center flex-shrink-0"
           >
             <Plus className="w-4 h-4" />
@@ -668,7 +675,7 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
           <input
             type="file"
             ref={fileInputRef}
-            accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp,image/*"
+            accept="image/jpeg,image/png,image/webp,application/pdf,.jpg,.jpeg,.png,.webp,.pdf,image/*"
             onChange={handleImageSelect}
             className="hidden"
           />
