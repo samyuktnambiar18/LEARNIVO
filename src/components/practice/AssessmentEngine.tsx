@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Award, ArrowRight, RotateCcw, AlertCircle, CheckCircle2, Lightbulb } from 'lucide-react';
+import { Award, ArrowRight, RotateCcw, AlertCircle, CheckCircle2, Lightbulb, FileCheck2 } from 'lucide-react';
 import { Question } from '../../types';
 import { adaptiveLearningService, AssessmentEvaluationResult } from '../../services/api/adaptiveLearningService';
 import { authService } from '../../services/auth/authService';
@@ -10,9 +10,11 @@ import { Badge } from '../ui/Badge';
 interface AssessmentEngineProps {
   questions: Question[];
   onComplete?: (result: AssessmentEvaluationResult) => void;
+  onAttendClick?: () => void;
+  isFetchingWebhook?: boolean;
 }
 
-export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({ questions, onComplete }) => {
+export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({ questions, onComplete, onAttendClick, isFetchingWebhook }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   // Store mapping from question.id to selected_option index (0, 1, 2, or 3)
   const [answersMap, setAnswersMap] = useState<Record<string, number>>({});
@@ -23,17 +25,24 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({ questions, o
   const [result, setResult] = useState<AssessmentEvaluationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Requirement: The assessment must contain EXACTLY 10 questions.
-  if (!questions || questions.length !== 10) {
+  // If no questions fetched from webhook yet, render empty start container
+  if (!questions || questions.length === 0) {
     return (
       <div className="surface-card p-8 border border-white/10 rounded-xl max-w-xl mx-auto text-center space-y-4">
-        <div className="w-14 h-14 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center mx-auto text-rose-400">
-          <AlertCircle className="w-7 h-7" />
+        <div className="w-14 h-14 rounded-full bg-[#C7FF4A]/10 border border-[#C7FF4A]/30 flex items-center justify-center mx-auto text-[#C7FF4A]">
+          <FileCheck2 className="w-7 h-7" />
         </div>
-        <h3 className="text-xl font-bold text-[#F7F5FA]">Assessment Requirements Error</h3>
+        <h3 className="text-xl font-bold text-[#F7F5FA]">No Assessment Questions Loaded</h3>
         <p className="text-sm text-[#A6A1B2]">
-          An assessment requires exactly 10 questions to evaluate student proficiency. Currently received: {questions ? questions.length : 0} questions.
+          Click the "Attend Assessment" button above or below to trigger the webhook and fetch your evaluation test questions.
         </p>
+        {onAttendClick && (
+          <div className="pt-2">
+            <Button variant="primary" isLoading={isFetchingWebhook} onClick={onAttendClick}>
+              Attend Assessment
+            </Button>
+          </div>
+        )}
       </div>
     );
   }
@@ -328,7 +337,7 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({ questions, o
       <div className="flex items-center justify-between border-b border-white/10 pb-4">
         <div className="flex items-center gap-3">
           <span className="text-xs font-semibold text-[#A6A1B2]">
-            Question {currentIndex + 1} of 10
+            Question {currentIndex + 1} of {questions.length}
           </span>
           <Badge variant="lime">{currentQ.topic}</Badge>
           <Badge
