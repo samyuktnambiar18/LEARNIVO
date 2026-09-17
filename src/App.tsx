@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { LandingPage } from './pages/Landing';
 import { Login } from './pages/Auth/Login';
 import { Signup } from './pages/Auth/Signup';
-import { Onboarding } from './pages/Auth/Onboarding';
+// import { Onboarding } from './pages/Auth/Onboarding';
 import { UploadPage } from './pages/Upload';
 import { DashboardPage } from './pages/Dashboard';
 import { PracticePage } from './pages/Practice';
@@ -26,10 +26,10 @@ export const App: React.FC = () => {
         {/* Landing Page (Official Current 2nd Design) */}
         <Route path="/" element={<LandingPage />} />
 
-        {/* Authentication & Onboarding */}
+        {/* Authentication */}
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
-        <Route path="/onboarding" element={<Onboarding />} />
+        <Route path="/onboarding" element={<Navigate to="/dashboard" replace />} />
 
         {/* Upload Page */}
         <Route path="/upload" element={<UploadPage />} />

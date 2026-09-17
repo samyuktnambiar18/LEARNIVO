@@ -40,12 +40,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
                 if (onSuccess) {
                   onSuccess(user);
                 } else {
-                  const profile = authService.getCurrentProfile();
-                  if (!profile || !profile.completedOnboarding) {
-                    navigate('/onboarding');
-                  } else {
-                    navigate('/dashboard');
-                  }
+                  navigate('/dashboard');
                 }
               } catch (err: any) {
                 console.warn('Failed to fetch Google UserInfo:', err);
@@ -91,12 +86,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
     if (onSuccess) {
       onSuccess(user);
     } else {
-      const profile = authService.getCurrentProfile();
-      if (!profile || !profile.completedOnboarding) {
-        navigate('/onboarding');
-      } else {
-        navigate('/dashboard');
-      }
+      navigate('/dashboard');
     }
   };
 

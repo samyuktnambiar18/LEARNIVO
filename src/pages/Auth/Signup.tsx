@@ -41,7 +41,7 @@ export const Signup: React.FC = () => {
 
     try {
       await authService.signup(name, email, password);
-      navigate('/onboarding');
+      navigate('/dashboard');
     } catch (err: any) {
       setError(err?.message || 'Failed to create account.');
       setIsLoading(false);
@@ -49,7 +49,7 @@ export const Signup: React.FC = () => {
   };
 
   const handleGoogleSuccess = (_user: User) => {
-    navigate('/onboarding');
+    navigate('/dashboard');
   };
 
   return (

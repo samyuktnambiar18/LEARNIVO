@@ -28,12 +28,7 @@ export const Login: React.FC = () => {
 
     try {
       await authService.login(email, password);
-      const profile = authService.getCurrentProfile();
-      if (!profile || !profile.completedOnboarding) {
-        navigate('/onboarding');
-      } else {
-        navigate('/dashboard');
-      }
+      navigate('/dashboard');
     } catch (err: any) {
       setError(err?.message || 'Invalid email or password.');
       setIsLoading(false);
@@ -41,12 +36,7 @@ export const Login: React.FC = () => {
   };
 
   const handleGoogleSuccess = (_user: User) => {
-    const profile = authService.getCurrentProfile();
-    if (!profile || !profile.completedOnboarding) {
-      navigate('/onboarding');
-    } else {
-      navigate('/dashboard');
-    }
+    navigate('/dashboard');
   };
 
   return (
