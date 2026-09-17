@@ -40,6 +40,9 @@ declare global {
           disableAutoSelect: () => void;
           revoke: (hint: string, callback?: (response: any) => void) => void;
         };
+        oauth2?: {
+          initTokenClient: (config: any) => { requestAccessToken: (options?: any) => void };
+        };
       };
     };
   }

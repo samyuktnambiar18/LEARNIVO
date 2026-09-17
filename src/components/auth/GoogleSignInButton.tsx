@@ -21,10 +21,55 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
   const [showEmailModal, setShowEmailModal] = useState<boolean>(false);
   const [googleEmailInput, setGoogleEmailInput] = useState<string>('');
 
+  const clientId = authService.getGoogleClientId();
+
   const handleGoogleClick = () => {
     setIsLoading(true);
+
+    // Use Google Identity Services Token Client if available
+    if (window.google?.accounts?.oauth2) {
+      try {
+        const tokenClient = window.google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: 'email profile openid',
+          callback: async (tokenResponse: any) => {
+            if (tokenResponse?.access_token) {
+              try {
+                const user = await authService.loginWithGoogleAccessToken(tokenResponse.access_token);
+                setIsLoading(false);
+                if (onSuccess) {
+                  onSuccess(user);
+                } else {
+                  const profile = authService.getCurrentProfile();
+                  if (!profile || !profile.completedOnboarding) {
+                    navigate('/onboarding');
+                  } else {
+                    navigate('/dashboard');
+                  }
+                }
+              } catch (err: any) {
+                console.warn('Failed to fetch Google UserInfo:', err);
+                authService.googleLoginDirect();
+              }
+            } else {
+              authService.googleLoginDirect();
+            }
+          },
+          error_callback: (err: any) => {
+            console.warn('GIS Token Client error:', err);
+            authService.googleLoginDirect();
+          }
+        });
+
+        tokenClient.requestAccessToken({ prompt: 'select_account' });
+        return;
+      } catch (err) {
+        console.warn('InitTokenClient fallback:', err);
+      }
+    }
+
+    // Direct Google Authorization redirect fallback
     try {
-      // Trigger DIRECT Google OAuth 2.0 endpoint on accounts.google.com
       authService.googleLoginDirect();
     } catch (err: any) {
       console.warn('Direct Google OAuth redirect error:', err);

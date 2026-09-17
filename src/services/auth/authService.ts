@@ -189,11 +189,38 @@ export const authService = {
   },
 
   /**
+   * Fetch Google user profile directly from Google UserInfo API using Access Token
+   */
+  loginWithGoogleAccessToken: async (accessToken: string): Promise<User> => {
+    const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`
+      }
+    });
+
+    if (!res.ok) {
+      throw new Error('Failed to retrieve user profile from Google UserInfo API.');
+    }
+
+    const data = await res.json();
+    const user: User = {
+      id: data.sub || 'google_' + Date.now(),
+      name: data.name || data.given_name || data.email.split('@')[0],
+      email: data.email,
+      avatar: data.picture || 'https://lh3.googleusercontent.com/a/default-user',
+      createdAt: new Date().toISOString()
+    };
+
+    storageService.saveUser(user);
+    return user;
+  },
+
+  /**
    * Direct Google OAuth 2.0 Authorization Endpoint (No Supabase involved)
    */
   googleLoginDirect: (): void => {
     const clientId = authService.getGoogleClientId();
-    const redirectUri = window.location.origin + '/login';
+    const redirectUri = window.location.origin;
     const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` + new URLSearchParams({
       client_id: clientId,
       redirect_uri: redirectUri,
