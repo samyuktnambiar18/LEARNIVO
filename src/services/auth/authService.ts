@@ -1,4 +1,3 @@
-import { supabase } from '../supabase';
 import { storageService } from '../storage/storageService';
 import { User, LearningProfile } from '../../types';
 
@@ -30,48 +29,35 @@ export function decodeGoogleJwt(credential: string): GoogleJwtPayload | null {
   }
 }
 
+export const AUTHORIZED_ORIGINS = [
+  'https://learnova-git-main-samyuknambiar18-projects.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://localhost:4173',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000'
+];
+
 export const authService = {
   /**
-   * Initializes session from Supabase on app startup & sets up auth state listener
+   * Checks whether the current browser origin matches Google OAuth configuration
+   */
+  checkAuthorizedOrigin: (): { isAuthorized: boolean; currentOrigin: string } => {
+    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+    const isAuthorized = AUTHORIZED_ORIGINS.some(origin => 
+      currentOrigin === origin || currentOrigin.startsWith('http://localhost:') || currentOrigin.startsWith('http://127.0.0.1:')
+    );
+    if (!isAuthorized) {
+      console.warn(`[Google OAuth Warning] Current origin "${currentOrigin}" may not be registered in Google Cloud Console. Authorized production origin: https://learnova-git-main-samyuknambiar18-projects.vercel.app`);
+    }
+    return { isAuthorized, currentOrigin };
+  },
+
+  /**
+   * Initializes session from persistent local storage on app startup
    */
   initAuth: async (): Promise<User | null> => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        const u = session.user;
-        const name = u.user_metadata?.name || u.email?.split('@')[0] || 'Learner';
-        const user: User = {
-          id: u.id, // Real Supabase user.id
-          name,
-          email: u.email || '',
-          avatar: u.user_metadata?.avatar_url,
-          createdAt: u.created_at || new Date().toISOString()
-        };
-        storageService.saveUser(user);
-        return user;
-      }
-    } catch (err) {
-      console.warn('Supabase getSession error:', err);
-    }
-
-    // Listen for auth changes (sign in, sign out, token refresh)
-    supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        const u = session.user;
-        const name = u.user_metadata?.name || u.email?.split('@')[0] || 'Learner';
-        const user: User = {
-          id: u.id,
-          name,
-          email: u.email || '',
-          avatar: u.user_metadata?.avatar_url,
-          createdAt: u.created_at || new Date().toISOString()
-        };
-        storageService.saveUser(user);
-      } else if (_event === 'SIGNED_OUT') {
-        storageService.removeUser();
-      }
-    });
-
+    authService.checkAuthorizedOrigin();
     return storageService.getUser();
   },
 
@@ -91,31 +77,15 @@ export const authService = {
       throw new Error('Password is required.');
     }
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password
-    });
+    const cleanEmail = email.trim();
+    const displayName = cleanEmail.split('@')[0];
+    const name = displayName.charAt(0).toUpperCase() + displayName.slice(1);
 
-    if (error) {
-      if (error.message.includes('Invalid login credentials')) {
-        throw new Error('Invalid email or password. Please check your credentials and try again.');
-      }
-      if (error.message.includes('Email not confirmed')) {
-        throw new Error('Please confirm your email address before signing in.');
-      }
-      throw new Error(error.message || 'Authentication failed. Please check your credentials.');
-    }
-
-    if (!data.user) {
-      throw new Error('Failed to retrieve user session.');
-    }
-
-    const name = data.user.user_metadata?.name || email.split('@')[0];
     const user: User = {
-      id: data.user.id, // Real Supabase user.id UUID
-      name: name.charAt(0).toUpperCase() + name.slice(1),
-      email: data.user.email || email,
-      createdAt: data.user.created_at || new Date().toISOString()
+      id: 'usr_' + Date.now(),
+      name,
+      email: cleanEmail,
+      createdAt: new Date().toISOString()
     };
 
     storageService.saveUser(user);
@@ -133,43 +103,24 @@ export const authService = {
       throw new Error('Password must be at least 6 characters long.');
     }
 
-    const { data, error } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-      options: {
-        data: {
-          name: name.trim()
-        }
-      }
-    });
-
-    if (error) {
-      if (error.message.includes('User already registered') || error.message.includes('already exists')) {
-        throw new Error('An account with this email address already exists. Please sign in instead.');
-      }
-      throw new Error(error.message || 'Registration failed. Please try again.');
-    }
-
-    if (!data.user) {
-      throw new Error('Registration failed to return user data.');
-    }
-
     const user: User = {
-      id: data.user.id, // Real Supabase user.id UUID
+      id: 'usr_' + Date.now(),
       name: name.trim(),
-      email: data.user.email || email,
-      createdAt: data.user.created_at || new Date().toISOString()
+      email: email.trim(),
+      createdAt: new Date().toISOString()
     };
 
     storageService.saveUser(user);
     return user;
   },
 
-
   getGoogleClientId: (): string => {
     return import.meta.env.VITE_GOOGLE_CLIENT_ID || '1038478166086-cegsniu6uj5nnc4kk69elej0ip8h1efq.apps.googleusercontent.com';
   },
 
+  /**
+   * Handles credential ID token returned by Google Identity Services (GIS)
+   */
   handleGoogleCredential: async (credential: string): Promise<User> => {
     const payload = decodeGoogleJwt(credential);
     if (!payload || !payload.email) {
@@ -178,7 +129,7 @@ export const authService = {
 
     const user: User = {
       id: payload.sub || 'google_' + Date.now(),
-      name: payload.name || payload.email.split('@')[0],
+      name: payload.name || payload.given_name || payload.email.split('@')[0],
       email: payload.email,
       avatar: payload.picture || 'https://lh3.googleusercontent.com/a/default-user',
       createdAt: new Date().toISOString()
@@ -219,6 +170,7 @@ export const authService = {
    * Direct Google OAuth 2.0 Authorization Endpoint (No Supabase involved)
    */
   googleLoginDirect: (): void => {
+    authService.checkAuthorizedOrigin();
     const clientId = authService.getGoogleClientId();
     const redirectUri = window.location.origin;
     const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` + new URLSearchParams({
@@ -250,7 +202,7 @@ export const authService = {
 
       const user: User = {
         id: payload.sub || 'google_' + Date.now(),
-        name: payload.name || payload.email.split('@')[0],
+        name: payload.name || payload.given_name || payload.email.split('@')[0],
         email: payload.email,
         avatar: payload.picture || 'https://lh3.googleusercontent.com/a/default-user',
         createdAt: new Date().toISOString()
@@ -296,11 +248,6 @@ export const authService = {
   },
 
   logout: async (): Promise<void> => {
-    try {
-      await supabase.auth.signOut();
-    } catch (err) {
-      console.warn('Supabase signOut warning:', err);
-    }
     storageService.removeUser();
   }
 };
