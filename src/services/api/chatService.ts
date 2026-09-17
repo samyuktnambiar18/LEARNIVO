@@ -18,32 +18,53 @@ export const chatService = {
     messageText: string,
     materialTitle?: string,
     materialText?: string,
+    imageFile?: File | null,
+    studentId?: string,
     imageUrl?: string
   ): Promise<ChatServiceResponse> => {
     try {
-      const response = await fetch(CHAT_WEBHOOK_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: messageText || 'Explain this image',
-          query: messageText || 'Explain this image',
-          text: messageText || 'Explain this image',
-          materialTitle: materialTitle || '',
-          context: materialText ? materialText.slice(0, 2000) : '',
-          imageUrl: imageUrl || '',
-          image: imageUrl || '',
-          image_url: imageUrl || '',
-          imageBase64: imageUrl || '',
-          image_base64: imageUrl || '',
-          file: imageUrl || '',
-          media: imageUrl || '',
-          payloadImage: imageUrl || '',
-          userImage: imageUrl || '',
-          attachments: imageUrl ? [{ url: imageUrl, type: 'image', data: imageUrl }] : []
-        })
-      });
+      let response: Response;
+
+      if (imageFile) {
+        const formData = new FormData();
+        formData.append('image', imageFile); // Field name MUST be 'image' for OCR/vision backend
+        if (messageText.trim()) {
+          formData.append('message', messageText.trim());
+        }
+        formData.append('query', messageText.trim() || 'Explain this image');
+        formData.append('text', messageText.trim() || 'Explain this image');
+        formData.append('student_id', studentId || 'guest_student');
+        formData.append('subject', materialTitle || 'General');
+        formData.append('timestamp', new Date().toISOString());
+        if (materialText) {
+          formData.append('context', materialText.slice(0, 2000));
+        }
+
+        // NOTE: Do NOT set Content-Type header so browser automatically generates multipart/form-data boundary
+        response = await fetch(CHAT_WEBHOOK_URL, {
+          method: 'POST',
+          body: formData,
+        });
+      } else {
+        response = await fetch(CHAT_WEBHOOK_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message: messageText || 'Explain this image',
+            query: messageText || 'Explain this image',
+            text: messageText || 'Explain this image',
+            student_id: studentId || 'guest_student',
+            subject: materialTitle || 'General',
+            timestamp: new Date().toISOString(),
+            materialTitle: materialTitle || '',
+            context: materialText ? materialText.slice(0, 2000) : '',
+            imageUrl: imageUrl || '',
+            image: imageUrl || '',
+          })
+        });
+      }
 
       if (!response.ok) {
         console.warn(`Chat webhook returned HTTP ${response.status}`);

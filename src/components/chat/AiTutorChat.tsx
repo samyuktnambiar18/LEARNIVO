@@ -28,6 +28,8 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
     previewUrl: string;
     base64: string;
   } | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isAnalyzingImage, setIsAnalyzingImage] = useState<boolean>(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -100,12 +102,38 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
   }, [messages, isThinking]);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setUploadError(null);
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (file.size === 0) {
+      setUploadError('Please upload a valid, non-empty image file.');
+      e.target.value = '';
+      return;
+    }
+
     const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-    if (!validTypes.includes(file.type.toLowerCase())) {
-      alert('Please select a valid image file (JPG, JPEG, PNG, or WEBP).');
+    const fileType = file.type.toLowerCase();
+    const fileName = file.name.toLowerCase();
+
+    const isSupportedType =
+      validTypes.includes(fileType) ||
+      fileName.endsWith('.jpg') ||
+      fileName.endsWith('.jpeg') ||
+      fileName.endsWith('.png') ||
+      fileName.endsWith('.webp');
+
+    if (!isSupportedType) {
+      setUploadError('Please upload a JPG, JPEG, PNG, or WEBP image.');
+      e.target.value = '';
+      return;
+    }
+
+    // 10 MB Limit Check
+    const MAX_SIZE_BYTES = 10 * 1024 * 1024;
+    if (file.size > MAX_SIZE_BYTES) {
+      setUploadError('Image is too large. Please upload an image under 10 MB.');
+      e.target.value = '';
       return;
     }
 
@@ -124,6 +152,7 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
       URL.revokeObjectURL(selectedImage.previewUrl);
     }
     setSelectedImage(null);
+    setUploadError(null);
   };
 
   const handleSendMessage = async (textToSend?: string) => {
@@ -133,6 +162,7 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
     if ((!text.trim() && !currentImage) || isThinking) return;
 
     setDbError(null);
+    setUploadError(null);
     const userText = text.trim() || (currentImage ? 'Please explain this image and solve the question inside it.' : '');
 
     // STEP 1: Get the currently authenticated Supabase user
@@ -158,6 +188,9 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
     setInputText('');
     setSelectedImage(null);
     setIsThinking(true);
+    if (currentImage) {
+      setIsAnalyzingImage(true);
+    }
 
     // Save user message to Supabase
     if (user?.id) {
@@ -197,7 +230,6 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
           return;
         }
 
-
         const aiMessage: ChatMessage = {
           id: 'msg_magic_' + Date.now(),
           sender: 'ai',
@@ -219,10 +251,13 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
         }
       } else {
         // EXPLAIN (NORMAL TEXT CHAT) MODE
+        // Sends multipart/form-data via FormData under field 'image'
         const response = await chatService.sendMessage(
           userText,
-          selectedMaterial?.title,
+          selectedMaterial?.title || 'General',
           selectedMaterial?.rawText,
+          currentImage?.file,
+          user?.id || 'guest_student',
           currentImage?.base64 || currentImage?.previewUrl
         );
 
@@ -264,8 +299,8 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
       }
     } finally {
       setIsThinking(false);
+      setIsAnalyzingImage(false);
     }
-
   };
 
   const handleNewChat = () => {
@@ -274,6 +309,7 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
     setMessages([]);
     storageService.clearChatHistory();
     setDbError(null);
+    setUploadError(null);
   };
 
   return (
@@ -542,7 +578,9 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
             <div className="flex items-center gap-2.5 text-xs font-semibold text-[#C7FF4A]">
               <Loader2 className="w-4 h-4 animate-spin" />
               <span>
-                {activeMode === 'magic_view'
+                {isAnalyzingImage
+                  ? 'Analyzing image...'
+                  : activeMode === 'magic_view'
                   ? 'Creating your visual explanation...'
                   : 'AI Tutor is communicating with SNS Agent Workbench...'}
               </span>
@@ -561,6 +599,24 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
 
       {/* Input Box */}
       <div className="p-4 border-t border-white/10 bg-[#121118] space-y-3">
+        {/* Upload Validation Error Message Banner */}
+        {uploadError && (
+          <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-center justify-between gap-2 animate-fade-in">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+              <span>{uploadError}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setUploadError(null)}
+              className="text-white/60 hover:text-white font-bold px-1"
+              aria-label="Dismiss error"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
         {/* Selected Image Thumbnail Preview Bar */}
         {selectedImage && (
           <div className="flex items-center gap-2">
@@ -570,15 +626,20 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
                 alt="Doubt image preview"
                 className="w-12 h-12 object-cover rounded-lg border border-white/10"
               />
-              <div className="text-xs space-y-0.5 max-w-[150px] truncate">
+              <div className="text-xs space-y-0.5 max-w-[180px] truncate">
                 <p className="font-semibold text-[#F7F5FA] text-[11px] truncate">{selectedImage.file.name}</p>
-                <p className="text-[10px] text-[#A6A1B2]">{(selectedImage.file.size / 1024).toFixed(1)} KB</p>
+                <p className="text-[10px] text-[#A6A1B2]">
+                  {selectedImage.file.size > 1024 * 1024
+                    ? `${(selectedImage.file.size / (1024 * 1024)).toFixed(2)} MB`
+                    : `${(selectedImage.file.size / 1024).toFixed(1)} KB`}
+                </p>
               </div>
               <button
                 type="button"
                 onClick={handleRemoveImage}
+                aria-label="Remove attached image"
+                title="Remove attached image"
                 className="w-5 h-5 rounded-full bg-red-500/80 hover:bg-red-600 text-white flex items-center justify-center text-xs ml-1 transition-all"
-                title="Remove image"
               >
                 ×
               </button>
@@ -596,9 +657,13 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
           {/* '+' Image Attachment Button */}
           <button
             type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="p-3 rounded-lg bg-[#181620] border border-white/10 text-[#A6A1B2] hover:text-[#C7FF4A] hover:border-[#C7FF4A]/40 transition-all flex items-center justify-center flex-shrink-0"
+            onClick={() => {
+              setUploadError(null);
+              fileInputRef.current?.click();
+            }}
+            aria-label="Upload image"
             title="Upload image"
+            className="p-3 rounded-lg bg-[#181620] border border-white/10 text-[#A6A1B2] hover:text-[#C7FF4A] hover:border-[#C7FF4A]/40 transition-all flex items-center justify-center flex-shrink-0"
           >
             <Plus className="w-4 h-4" />
           </button>
