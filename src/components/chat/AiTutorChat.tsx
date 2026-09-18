@@ -257,7 +257,8 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({ selectedMaterial }) =>
           selectedMaterial?.rawText,
           currentImage?.file,
           user?.id || 'guest_student',
-          currentImage?.base64 || currentImage?.previewUrl
+          currentImage?.base64 || currentImage?.previewUrl,
+          sessionId
         );
 
         const aiMessage: ChatMessage = {

@@ -20,7 +20,8 @@ export const chatService = {
     materialText?: string,
     imageFile?: File | null,
     studentId?: string,
-    imageUrl?: string
+    imageUrl?: string,
+    sessionId?: string
   ): Promise<ChatServiceResponse> => {
     try {
       let response: Response;
@@ -42,6 +43,10 @@ export const chatService = {
         formData.append('query', messageText.trim() || (isPdf ? 'Analyze this PDF document' : 'Explain this image'));
         formData.append('text', messageText.trim() || (isPdf ? 'Analyze this PDF document' : 'Explain this image'));
         formData.append('student_id', studentId || 'guest_student');
+        if (sessionId) {
+          formData.append('session_id', sessionId);
+          formData.append('sessionId', sessionId);
+        }
         formData.append('subject', materialTitle || 'General');
         formData.append('timestamp', new Date().toISOString());
         if (materialText) {
@@ -60,10 +65,12 @@ export const chatService = {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            message: messageText || 'Explain this image',
-            query: messageText || 'Explain this image',
-            text: messageText || 'Explain this image',
+            message: messageText.trim() || 'Explain this image',
+            query: messageText.trim() || 'Explain this image',
+            text: messageText.trim() || 'Explain this image',
             student_id: studentId || 'guest_student',
+            session_id: sessionId || '',
+            sessionId: sessionId || '',
             subject: materialTitle || 'General',
             timestamp: new Date().toISOString(),
             materialTitle: materialTitle || '',
