@@ -16,13 +16,13 @@ import {
   Camera,
   CameraOff,
   AlertTriangle,
-  UserX,
   Users,
   EyeOff,
-  X,
   ShieldCheck,
   Check,
-  RefreshCw
+  RefreshCw,
+  Bug,
+  SunMedium
 } from 'lucide-react';
 import {
   AssessmentSuiteData,
@@ -33,7 +33,14 @@ import {
 } from '../../types';
 import { adaptiveLearningService } from '../../services/api/adaptiveLearningService';
 import { assessmentHistoryService, AssessmentHistoryRecord, QuestionReviewDetail } from '../../services/assessmentHistoryService';
-import { ProctoringManager, CameraStatus, FaceStatus, ProctoringViolationEvent, ViolationType } from '../../services/proctoring/ProctoringManager';
+import {
+  ProctoringManager,
+  CameraStatus,
+  FaceStatus,
+  ProctoringViolationEvent,
+  ViolationType,
+  ProctoringDebugInfo
+} from '../../services/proctoring/ProctoringManager';
 import { Button } from '../ui/Button';
 
 interface AssessmentEngineProps {
@@ -53,7 +60,7 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
 
   // Assessment Stage & Monitoring State
   const [stage, setStage] = useState<'pre_check' | 'active' | 'submitted' | 'terminated'>('pre_check');
-  const [cameraStatus, setCameraStatus] = useState<CameraStatus>('requesting');
+  const [cameraStatus, setCameraStatus] = useState<CameraStatus>('uninitialized');
   const [faceStatus, setFaceStatus] = useState<FaceStatus>('no-face');
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
   const [preCheckError, setPreCheckError] = useState<string | null>(null);
@@ -63,6 +70,10 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
   const [activeModal, setActiveModal] = useState<'none' | 'camera_permission' | 'warning' | 'terminated'>('none');
   const [currentWarningDetails, setCurrentWarningDetails] = useState<{ title: string; message: string; violationType: string } | null>(null);
   const [violationsLog, setViolationsLog] = useState<{ type: string; timestamp: string; question_number: number; warning_number: number }[]>([]);
+
+  // Debug Panel State
+  const [showDebugPanel, setShowDebugPanel] = useState<boolean>(false);
+  const [debugInfo, setDebugInfo] = useState<ProctoringDebugInfo | null>(null);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const preCheckVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -83,6 +94,18 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
   useEffect(() => {
     currentIndexRef.current = currentIndex;
   }, [currentIndex]);
+
+  // Keyboard Hotkey Ctrl+Shift+D to toggle Debug Mode
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        setShowDebugPanel(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Check if session was previously terminated
   useEffect(() => {
@@ -119,7 +142,7 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
           proctoringManager.attachVideoElement(preCheckVideoRef.current);
         }
 
-        // Start pre-check face monitoring
+        // Start frame monitoring
         proctoringManager.startMonitoring({
           onStatusChange: (status) => {
             if (!isMounted) return;
@@ -138,6 +161,10 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
             if (stageRef.current === 'active') {
               setActiveModal('camera_permission');
             }
+          },
+          onDebugUpdate: (info) => {
+            if (!isMounted) return;
+            setDebugInfo(info);
           }
         });
 
@@ -145,7 +172,7 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
         console.warn('Proctoring camera init error:', err);
         if (isMounted) {
           setCameraStatus('denied');
-          setPreCheckError('Camera access is required for this proctored examination.');
+          setPreCheckError('Camera access is required for Proctored Exam Mode.');
         }
       }
     }
@@ -178,7 +205,7 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
     };
   }, []);
 
-  // 2. Tab Visibility Change Listener during Active Assessment
+  // 2. Tab Visibility Change Listener during Active Assessment (Tracked Independently)
   useEffect(() => {
     if (stage !== 'active') return;
 
@@ -187,6 +214,7 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
         proctoringManager.issueWarning(
           'TAB_SWITCH',
           'You left the examination tab. Please remain on the assessment page.',
+          0.99,
           suiteData.questions[currentIndexRef.current]?.question_number || currentIndexRef.current + 1
         );
       }
@@ -198,7 +226,7 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
     };
   }, [stage, suiteData]);
 
-  // 3. Fullscreen Exit Listener during Active Assessment
+  // 3. Fullscreen Exit Listener during Active Assessment (Tracked Independently)
   useEffect(() => {
     if (stage !== 'active') return;
 
@@ -207,6 +235,7 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
         proctoringManager.issueWarning(
           'FULLSCREEN_EXIT',
           'You exited fullscreen mode. Please return to fullscreen to continue your assessment.',
+          0.99,
           suiteData.questions[currentIndexRef.current]?.question_number || currentIndexRef.current + 1
         );
       }
@@ -235,17 +264,17 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
     if (evt.warning_number >= 3) {
       terminateAssessment('Examination terminated after 3 confirmed proctoring warnings.');
     } else {
-      let title = `Warning ${evt.warning_number}/3`;
+      let title = `⚠️ PROCTORING WARNING (Warning ${evt.warning_number}/3)`;
       let formattedMsg = evt.message;
 
       if (evt.warning_number === 2) {
-        formattedMsg = `Warning 2/3 — Continued violations will terminate your exam. (${evt.type.replace('_', ' ')})`;
+        formattedMsg = `Warning 2/3 — Continued violations will terminate your exam. (${evt.type.replace(/_/g, ' ')})`;
       }
 
       setCurrentWarningDetails({
         title,
         message: formattedMsg,
-        violationType: evt.type.replace('_', ' ')
+        violationType: evt.type.replace(/_/g, ' ')
       });
       setActiveModal('warning');
     }
@@ -268,7 +297,7 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
       }
     } catch (err) {
       setCameraStatus('denied');
-      setPreCheckError('Camera access is required for this proctored examination.');
+      setPreCheckError('Camera access is required for Proctored Exam Mode.');
     }
   };
 
@@ -495,7 +524,7 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
   };
 
   // --------------------------------------------------------------------------
-  // STAGE 0: PRE-CHECK STAGE (CAMERA & FACE MANDATORY BEFORE STARTING TEST)
+  // STAGE 0: PRE-CHECK STAGE (CAMERA READINESS MANDATORY BEFORE STARTING TEST)
   // --------------------------------------------------------------------------
   if (stage === 'pre_check') {
     const isReadyToStart = cameraStatus === 'active' && faceStatus === 'single-face' && Boolean(mediaStream && mediaStream.active);
@@ -509,7 +538,7 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
           <div className="flex items-center justify-between pb-4 border-b border-white/10">
             <div>
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider bg-[#C7FF4A]/10 text-[#C7FF4A] border border-[#C7FF4A]/30 uppercase">
-                Proctored Exam Security Setup
+                CAMERA CHECK
               </span>
               <h2 className="text-2xl font-black text-white pt-1">
                 {subject_name}
@@ -523,7 +552,7 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
             </div>
           </div>
 
-          {/* Video Preview & Status Overlay */}
+          {/* Video Preview Box */}
           <div className="relative w-full h-56 rounded-xl border border-white/15 bg-black/90 overflow-hidden flex items-center justify-center shadow-inner">
             {cameraStatus === 'active' && mediaStream && mediaStream.active ? (
               <video
@@ -537,16 +566,21 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
               <div className="flex flex-col items-center justify-center text-center p-6 space-y-3">
                 <CameraOff className="w-10 h-10 text-rose-400 animate-pulse" />
                 <p className="text-xs font-semibold text-rose-300">
-                  Camera access is required for this proctored examination.
+                  Camera access is required for Proctored Exam Mode.
                 </p>
               </div>
             )}
 
-            {/* Live Camera Badge */}
-            {cameraStatus === 'active' && mediaStream && mediaStream.active && (
+            {/* Status Overlay Badge */}
+            {cameraStatus === 'active' && mediaStream && mediaStream.active ? (
               <div className="absolute top-3 left-3 bg-black/75 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-mono text-emerald-400 flex items-center gap-1.5 border border-emerald-500/30">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                WEBCAM READY
+                MONITORING ACTIVE
+              </div>
+            ) : (
+              <div className="absolute top-3 left-3 bg-black/75 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-mono text-rose-400 flex items-center gap-1.5 border border-rose-500/30">
+                <span className="w-2 h-2 rounded-full bg-rose-400 animate-pulse" />
+                CAMERA OFFLINE
               </div>
             )}
           </div>
@@ -554,7 +588,7 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
           {/* Verification Checklist */}
           <div className="space-y-3 bg-[#13111C] p-5 rounded-xl border border-white/10">
             <h4 className="text-xs font-semibold text-[#A6A1B2] uppercase tracking-wider">
-              Environment Verification Checklist
+              Camera Verification Status
             </h4>
 
             <div className="space-y-2.5 text-xs">
@@ -565,24 +599,24 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
                 </span>
                 {cameraStatus === 'active' ? (
                   <span className="flex items-center gap-1 font-bold text-emerald-400">
-                    <Check className="w-3.5 h-3.5" /> Granted & Active
+                    <Check className="w-3.5 h-3.5" /> Camera Detected
                   </span>
                 ) : (
-                  <span className="font-bold text-rose-400">Denied / Pending</span>
+                  <span className="font-bold text-rose-400">Permission Required</span>
                 )}
               </div>
 
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-2 text-white">
                   <Sparkles className="w-4 h-4 text-[#C7FF4A]" />
-                  Video Stream Quality
+                  Video Stream State
                 </span>
                 {cameraStatus === 'active' && mediaStream && mediaStream.active ? (
                   <span className="flex items-center gap-1 font-bold text-emerald-400">
-                    <Check className="w-3.5 h-3.5" /> Active Stream
+                    <Check className="w-3.5 h-3.5" /> Stream Active
                   </span>
                 ) : (
-                  <span className="font-bold text-rose-400">Unavailable</span>
+                  <span className="font-bold text-rose-400">Offline / Disabled</span>
                 )}
               </div>
 
@@ -593,7 +627,7 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
                 </span>
                 {faceStatus === 'single-face' ? (
                   <span className="flex items-center gap-1 font-bold text-emerald-400">
-                    <Check className="w-3.5 h-3.5" /> Single Face Verified
+                    <Check className="w-3.5 h-3.5" /> Face Detected
                   </span>
                 ) : faceStatus === 'multiple-faces' ? (
                   <span className="font-bold text-rose-400 flex items-center gap-1">
@@ -608,21 +642,21 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
             </div>
           </div>
 
-          {/* Error Message callout if denied */}
-          {preCheckError && (
-            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between gap-2.5">
+          {/* Refused Permission / Error Banner */}
+          {(preCheckError || cameraStatus === 'denied' || cameraStatus === 'unavailable') && (
+            <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
                 <AlertCircle className="w-4 h-4 text-rose-400 flex-shrink-0" />
-                <span>{preCheckError}</span>
+                <span>{preCheckError || "Camera access is required for Proctored Exam Mode."}</span>
               </div>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleRetryCamera}
-                className="text-xs text-rose-300 border-rose-500/30 hover:bg-rose-500/20"
+                className="text-xs text-rose-300 border-rose-500/40 hover:bg-rose-500/20 whitespace-nowrap"
               >
                 <RefreshCw className="w-3 h-3 mr-1" />
-                Try Again
+                Allow Camera Access
               </Button>
             </div>
           )}
@@ -636,12 +670,12 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
               className="w-full bg-[#C7FF4A] text-black font-extrabold hover:bg-[#b8f533] py-3.5 text-sm shadow-xl shadow-[#C7FF4A]/20 disabled:opacity-40"
             >
               <Maximize2 className="w-4 h-4 mr-2" />
-              Start Assessment & Enter Fullscreen
+              START ASSESSMENT
             </Button>
 
             {!isReadyToStart && (
               <p className="text-[11px] text-center text-[#A6A1B2]">
-                Please ensure your camera is enabled and your face is clearly visible in the preview to activate the assessment.
+                Please allow camera access and ensure your face is clearly visible in the preview to start the assessment.
               </p>
             )}
           </div>
@@ -777,27 +811,50 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-[#08090D] text-[#F7F5FA] flex flex-col overflow-y-auto min-h-screen">
-      {/* Floating Webcam Preview (Top-Right, Away from question content) */}
-      {stage === 'active' && cameraStatus === 'active' && (
+      {/* Floating Webcam Preview (Top-Right) */}
+      {stage === 'active' && (
         <div className="fixed top-16 right-6 w-36 h-28 rounded-xl border border-white/20 bg-black/90 shadow-2xl z-40 overflow-hidden flex flex-col group transition-all">
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="w-full h-full object-cover transform -scale-x-100"
-          />
-          <div className="absolute bottom-1 left-1.5 right-1.5 flex items-center justify-between text-[9px] bg-black/75 px-1.5 py-0.5 rounded text-white font-mono">
-            <span className="flex items-center gap-1 text-emerald-400 font-bold">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              MONITORING ACTIVE
-            </span>
+          {cameraStatus === 'active' && mediaStream && mediaStream.active ? (
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full h-full object-cover transform -scale-x-100"
+            />
+          ) : (
+            <div className="w-full h-full bg-black flex flex-col items-center justify-center p-2 text-center text-rose-400">
+              <CameraOff className="w-6 h-6 mb-1 animate-pulse" />
+              <span className="text-[9px] font-bold">OFFLINE</span>
+            </div>
+          )}
+
+          <div className="absolute bottom-1 left-1.5 right-1.5 flex items-center justify-between text-[9px] bg-black/80 px-1.5 py-0.5 rounded text-white font-mono border border-white/10">
+            {cameraStatus === 'active' && mediaStream && mediaStream.active ? (
+              <span className="flex items-center gap-1 text-emerald-400 font-bold">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                MONITORING ACTIVE
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 text-rose-400 font-bold">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse" />
+                CAMERA OFFLINE
+              </span>
+            )}
             <span className="text-[#A6A1B2]">Warns: {warningCount}/3</span>
           </div>
         </div>
       )}
 
-      {/* MODAL 1: CAMERA PERMISSION DENIED OR DISCONNECTED */}
+      {/* Low Light Non-Intrusive Notice Banner */}
+      {stage === 'active' && debugInfo && debugInfo.isLowLight && (
+        <div className="bg-amber-500/15 border-b border-amber-500/30 text-amber-300 text-xs py-2 px-4 text-center font-medium flex items-center justify-center gap-2 sticky top-0 z-40">
+          <SunMedium className="w-4 h-4 text-amber-400" />
+          <span>Lighting is too low for reliable monitoring. Please ensure your environment is lit properly.</span>
+        </div>
+      )}
+
+      {/* MODAL 1: CAMERA DISCONNECTED OR HARDWARE INTERRUPTED (Pauses Assessment, No Cheating Penalty) */}
       {activeModal === 'camera_permission' && (
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-6">
           <div className="bg-[#13111C] border border-red-500/40 rounded-2xl p-8 max-w-md text-center space-y-5 shadow-2xl">
@@ -807,7 +864,7 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
             <div className="space-y-2">
               <h3 className="text-xl font-bold text-white">Camera Connection Lost</h3>
               <p className="text-xs text-[#A6A1B2] leading-relaxed">
-                Camera access is required for this proctored examination. Your examination is paused until camera access is restored.
+                Your camera connection was interrupted. Please reconnect your camera to continue your assessment.
               </p>
             </div>
             <Button
@@ -816,13 +873,13 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
               className="bg-[#C7FF4A] text-black font-bold hover:bg-[#b8f533] w-full"
             >
               <RefreshCw className="w-4 h-4 mr-2" />
-              Reconnect Camera & Resume
+              Retry Camera
             </Button>
           </div>
         </div>
       )}
 
-      {/* MODAL 2: CENTRALIZED WARNING MODAL (WARNING 1..2) */}
+      {/* MODAL 2: CENTRALIZED WARNING MODAL (WARNING 1/3 and 2/3) */}
       {activeModal === 'warning' && currentWarningDetails && (
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-6">
           <div className="bg-[#13111C] border border-amber-500/40 rounded-2xl p-8 max-w-md text-center space-y-5 shadow-2xl">
@@ -867,7 +924,7 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
                 Warning 3/3 — Test Cancelled
               </h3>
               <p className="text-xs text-[#A6A1B2] leading-relaxed">
-                Your assessment was terminated because the maximum number of monitoring violations was reached.
+                Your assessment was terminated because the maximum number of confirmed monitoring violations was reached.
               </p>
             </div>
             <Button
@@ -877,6 +934,29 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
             >
               View Final Assessment Summary
             </Button>
+          </div>
+        </div>
+      )}
+
+      {/* FRONTEND TELEMETRY & DEBUG PANEL OVERLAY */}
+      {showDebugPanel && debugInfo && (
+        <div className="fixed bottom-6 left-6 z-50 bg-[#0D0B14]/95 border border-[#C7FF4A]/40 rounded-xl p-4 w-80 shadow-2xl backdrop-blur-md text-xs font-mono text-white space-y-2">
+          <div className="flex items-center justify-between pb-2 border-b border-white/10 text-[#C7FF4A] font-bold">
+            <span className="flex items-center gap-1.5">
+              <Bug className="w-3.5 h-3.5" /> Proctoring Debug Engine
+            </span>
+            <button onClick={() => setShowDebugPanel(false)} className="text-[#A6A1B2] hover:text-white">✕</button>
+          </div>
+          <div className="space-y-1 text-[11px] text-[#A6A1B2]">
+            <div className="flex justify-between"><span>Camera State:</span> <span className="text-white">{debugInfo.cameraStatus}</span></div>
+            <div className="flex justify-between"><span>Face Status:</span> <span className="text-white">{debugInfo.faceStatus}</span></div>
+            <div className="flex justify-between"><span>Detected Faces:</span> <span className="text-white">{debugInfo.detectedFaceCount} (Conf: {(debugInfo.faceConfidence * 100).toFixed(0)}%)</span></div>
+            <div className="flex justify-between"><span>Gaze State:</span> <span className="text-white">{debugInfo.gazeStatus}</span></div>
+            <div className="flex justify-between"><span>Mouth State:</span> <span className="text-white">{debugInfo.mouthStatus}</span></div>
+            <div className="flex justify-between"><span>Mean Luminance:</span> <span className="text-white">{debugInfo.luminance}</span></div>
+            <div className="flex justify-between"><span>Consecutive Buffers:</span> <span className="text-[#C7FF4A]">NF:{debugInfo.consecutiveNoFace} MF:{debugInfo.consecutiveMultiFace} GZ:{debugInfo.consecutiveGazeAway} MT:{debugInfo.consecutiveMouth}</span></div>
+            <div className="flex justify-between"><span>Warnings / Cooldown:</span> <span className="text-amber-400">{debugInfo.warningCount}/3 ({Math.ceil(debugInfo.cooldownRemainingMs / 1000)}s)</span></div>
+            <div className="flex justify-between"><span>Frame Rate:</span> <span className="text-emerald-400">{debugInfo.fps} FPS</span></div>
           </div>
         </div>
       )}
@@ -902,6 +982,16 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
         </div>
 
         <div className="flex items-center gap-4">
+          {/* Debug Toggle Button */}
+          <button
+            onClick={() => setShowDebugPanel(prev => !prev)}
+            className="px-2.5 py-1 rounded bg-white/5 border border-white/10 text-[10px] font-mono text-[#A6A1B2] hover:text-white flex items-center gap-1 transition-all"
+            title="Toggle Proctoring Telemetry Debug Overlay (Ctrl+Shift+D)"
+          >
+            <Bug className="w-3 h-3 text-[#C7FF4A]" />
+            Debug
+          </button>
+
           <div className="text-right">
             <div className="text-xs font-bold text-white">
               Question {currentIndex + 1} of {questions.length}
