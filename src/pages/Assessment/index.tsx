@@ -6,7 +6,7 @@ import { assessmentHistoryService, AssessmentHistoryRecord } from '../../service
 import { storageService } from '../../services/storage/storageService';
 import { AssessmentSuiteData } from '../../types';
 import { Button } from '../../components/ui/Button';
-import { Play, Sparkles, CheckCircle2, AlertCircle, FileCheck2, ArrowRight, Clock, Award, RotateCcw, XCircle, HelpCircle, BookOpen } from 'lucide-react';
+import { Play, Sparkles, CheckCircle2, AlertCircle, FileCheck2, ArrowRight, Clock, Award, RotateCcw, XCircle, HelpCircle, BookOpen, Trash2 } from 'lucide-react';
 
 interface SubjectOption {
   code: string;
@@ -28,6 +28,7 @@ export const AssessmentPage: React.FC = () => {
   const [selectedHistoryRecord, setSelectedHistoryRecord] = useState<AssessmentHistoryRecord | null>(null);
   const [availableSubjects, setAvailableSubjects] = useState<SubjectOption[]>(DEFAULT_SUBJECTS);
   const [selectedSubject, setSelectedSubject] = useState<SubjectOption>(DEFAULT_SUBJECTS[0]);
+  const [showClearModal, setShowClearModal] = useState<boolean>(false);
 
   // Load recent assessment history & available subjects on page load (DO NOT auto-fetch questions!)
   useEffect(() => {
@@ -108,6 +109,13 @@ export const AssessmentPage: React.FC = () => {
     } catch (err) {
       console.warn('Error loading assessment history:', err);
     }
+  };
+
+  const handleConfirmClearHistory = async () => {
+    await assessmentHistoryService.clearHistory();
+    setHistory([]);
+    setSelectedHistoryRecord(null);
+    setShowClearModal(false);
   };
 
   const handleTakeAssessment = async () => {
@@ -322,25 +330,50 @@ export const AssessmentPage: React.FC = () => {
         {/* Section 7 & 10: RECENT ASSESSMENTS */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-bold text-[#F7F5FA] flex items-center gap-2">
-              <Clock className="w-4 h-4 text-[#C7FF4A]" />
-              <span>Recent Assessments</span>
-            </h3>
+            <div className="flex items-center gap-3">
+              <h3 className="text-base font-bold text-[#F7F5FA] flex items-center gap-2">
+                <Clock className="w-4 h-4 text-[#C7FF4A]" />
+                <span>Recent Assessments</span>
+              </h3>
+              {history.length > 0 && (
+                <span className="text-xs text-[#A6A1B2]">
+                  {history.length} completed
+                </span>
+              )}
+            </div>
+
             {history.length > 0 && (
-              <span className="text-xs text-[#A6A1B2]">
-                {history.length} completed
-              </span>
+              <button
+                onClick={() => setShowClearModal(true)}
+                className="text-xs text-rose-400/80 hover:text-rose-400 hover:bg-rose-500/10 px-3 py-1.5 rounded-lg border border-rose-500/20 transition-all font-medium flex items-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Clear All
+              </button>
             )}
           </div>
 
           {history.length === 0 ? (
-            <div className="surface-card p-8 border border-white/10 rounded-2xl text-center space-y-3 bg-[#0D0B14]">
+            <div className="surface-card p-8 border border-white/10 rounded-2xl text-center space-y-4 bg-[#0D0B14]">
               <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mx-auto text-[#A6A1B2]">
                 <FileCheck2 className="w-6 h-6" />
               </div>
-              <p className="text-xs text-[#A6A1B2]">
-                No assessments completed yet. Take your first assessment to see your results here.
-              </p>
+              <div className="space-y-1">
+                <h4 className="text-sm font-bold text-white">No Recent Assessments</h4>
+                <p className="text-xs text-[#A6A1B2]">
+                  Your completed assessments will appear here.
+                </p>
+              </div>
+              <Button
+                variant="primary"
+                isLoading={isFetchingWebhook}
+                disabled={isFetchingWebhook}
+                onClick={handleTakeAssessment}
+                className="bg-[#C7FF4A] text-black font-extrabold hover:bg-[#b8f533] px-5 py-2.5 text-xs shadow-lg shadow-[#C7FF4A]/20"
+              >
+                <Play className="w-3.5 h-3.5 mr-1.5" />
+                Take Assessment
+              </Button>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -385,6 +418,41 @@ export const AssessmentPage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Clear Recent Assessments Confirmation Modal */}
+      {showClearModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6">
+          <div className="bg-[#13111C] border border-rose-500/30 rounded-2xl p-6 max-w-md w-full space-y-5 shadow-2xl relative overflow-hidden">
+            <div className="w-12 h-12 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center mx-auto text-rose-400">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-2">
+              <h3 className="text-lg font-bold text-white">Clear Recent Assessments?</h3>
+              <p className="text-xs text-[#A6A1B2] leading-relaxed">
+                This will remove all recently completed assessment records from this device. This action cannot be undone.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowClearModal(false)}
+                className="w-full text-xs border-white/10 hover:bg-white/5 text-white"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleConfirmClearHistory}
+                className="w-full text-xs bg-rose-500 hover:bg-rose-600 text-white font-bold border border-rose-500/50 shadow-lg shadow-rose-500/20"
+              >
+                Clear All
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </MainLayout>
   );
 };

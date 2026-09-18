@@ -233,5 +233,16 @@ export const assessmentHistoryService = {
   getLatest: async (): Promise<AssessmentHistoryRecord | null> => {
     const history = await assessmentHistoryService.getHistory();
     return history.length > 0 ? history[0] : null;
+  },
+
+  /**
+   * Clear all frontend assessment history records from localStorage
+   */
+  clearHistory: async (): Promise<void> => {
+    try {
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+    } catch (e) {
+      console.warn('Failed to clear assessment history from localStorage:', e);
+    }
   }
 };
