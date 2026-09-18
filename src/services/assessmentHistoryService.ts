@@ -144,6 +144,14 @@ export const assessmentHistoryService = {
    * Fetch assessment history for the logged-in user from evaluation / assessment_history
    */
   getHistory: async (): Promise<AssessmentHistoryRecord[]> => {
+    let clearedAt = 0;
+    try {
+      const clearedStr = localStorage.getItem('learnivo_assessment_history_cleared_at');
+      if (clearedStr) {
+        clearedAt = parseInt(clearedStr, 10) || 0;
+      }
+    } catch {}
+
     let localHistory: AssessmentHistoryRecord[] = [];
     try {
       const existingStr = localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -152,6 +160,12 @@ export const assessmentHistoryService = {
       }
     } catch {
       localHistory = [];
+    }
+
+    if (clearedAt > 0) {
+      localHistory = localHistory.filter(
+        r => new Date(r.completed_at).getTime() > clearedAt
+      );
     }
 
     let userId: string | null = null;
@@ -171,23 +185,26 @@ export const assessmentHistoryService = {
       if (!error && data && data.length > 0) {
         const map = new Map<string, AssessmentHistoryRecord>();
         data.forEach((r: any) => {
-          map.set(r.id || r.assessment_id, {
-            id: r.id || r.assessment_id,
-            user_id: r.user_id,
-            subject_code: r.subject_code,
-            subject_name: r.subject_name,
-            total_questions: r.total_questions || 0,
-            correct_answers: r.correct_answers || 0,
-            wrong_answers: r.wrong_answers || 0,
-            unanswered: r.unanswered || 0,
-            score: r.score || 0,
-            percentage: r.percentage || 0,
-            completed_at: r.completed_at || r.created_at || new Date().toISOString(),
-            details: r.details || [],
-            status: r.status || 'completed',
-            warning_count: r.warning_count || 0,
-            violations: r.violations || []
-          });
+          const recTimestamp = new Date(r.completed_at || r.created_at || 0).getTime();
+          if (clearedAt === 0 || recTimestamp > clearedAt) {
+            map.set(r.id || r.assessment_id, {
+              id: r.id || r.assessment_id,
+              user_id: r.user_id,
+              subject_code: r.subject_code,
+              subject_name: r.subject_name,
+              total_questions: r.total_questions || 0,
+              correct_answers: r.correct_answers || 0,
+              wrong_answers: r.wrong_answers || 0,
+              unanswered: r.unanswered || 0,
+              score: r.score || 0,
+              percentage: r.percentage || 0,
+              completed_at: r.completed_at || r.created_at || new Date().toISOString(),
+              details: r.details || [],
+              status: r.status || 'completed',
+              warning_count: r.warning_count || 0,
+              violations: r.violations || []
+            });
+          }
         });
 
         localHistory.forEach(r => {
@@ -241,6 +258,7 @@ export const assessmentHistoryService = {
   clearHistory: async (): Promise<void> => {
     try {
       localStorage.removeItem(LOCAL_STORAGE_KEY);
+      localStorage.setItem('learnivo_assessment_history_cleared_at', Date.now().toString());
     } catch (e) {
       console.warn('Failed to clear assessment history from localStorage:', e);
     }

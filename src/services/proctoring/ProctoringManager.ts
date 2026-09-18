@@ -76,14 +76,14 @@ export interface ProctoringConfig {
 
 const DEFAULT_CONFIG: ProctoringConfig = {
   maxWarnings: 3,
-  sampleIntervalMs: 750,              // Controlled sampling (~1.3 fps) for smooth UI & high stability
+  sampleIntervalMs: 800,              // Controlled sampling (~1.25 fps) for smooth UI & high stability
   noFaceThresholdMs: 6000,            // 6.0s continuous missing face -> grace period prevents false positives
-  multipleFacesThresholdMs: 4500,     // 4.5s continuous 2+ distinct high-confidence faces -> warning
+  multipleFacesThresholdMs: 5000,     // 5.0s continuous 2+ distinct high-confidence faces -> warning
   gazeThresholdMs: 6000,              // 6.0s continuous extreme gaze/head orientation away -> warning
   mouthThresholdMs: 6000,             // 6.0s continuous speaking motion -> warning
   cooldownMs: 15000,                  // 15s cooldown after any warning
   minFaceConfidence: 0.65,            // Min confidence threshold to validate primary face
-  multiFaceMinConfidence: 0.72,       // Higher confidence requirement for secondary face to prevent false positives
+  multiFaceMinConfidence: 0.78,       // Higher confidence requirement for secondary face to prevent false positives
 };
 
 interface SpatialCluster {
@@ -284,14 +284,21 @@ export class ProctoringManager {
   }
 
   /**
-   * Stop camera tracks and release resources
+   * Stop camera tracks and release resources idempotently
    */
   public stopCamera() {
     this.stopMonitoring();
     if (this.stream) {
-      this.stream.getTracks().forEach(t => t.stop());
+      try {
+        this.stream.getTracks().forEach(t => {
+          try {
+            t.stop();
+          } catch {}
+        });
+      } catch {}
       this.stream = null;
     }
+    this.videoElement = null;
     this.cameraStatus = 'disconnected';
     this.notifyStatus();
   }

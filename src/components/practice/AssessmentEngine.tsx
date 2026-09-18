@@ -205,7 +205,26 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
     };
   }, []);
 
-  // 2. Tab Visibility Change Listener during Active Assessment (Tracked Independently)
+  // 2. Browser Exit Protection (STRICTLY ACTIVE ONLY WHILE stage === 'active')
+  useEffect(() => {
+    if (stage !== 'active') return;
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (stageRef.current === 'active') {
+        const msg = 'An assessment is currently in progress. Are you sure you want to leave? Your answers will be lost.';
+        e.preventDefault();
+        e.returnValue = msg;
+        return msg;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [stage]);
+
+  // 3. Tab Visibility Change Listener during Active Assessment (Tracked Independently)
   useEffect(() => {
     if (stage !== 'active') return;
 
@@ -226,7 +245,7 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
     };
   }, [stage, suiteData]);
 
-  // 3. Fullscreen Exit Listener during Active Assessment (Tracked Independently)
+  // 4. Fullscreen Exit Listener during Active Assessment (Tracked Independently)
   useEffect(() => {
     if (stage !== 'active') return;
 
@@ -267,8 +286,14 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
       let title = `⚠️ PROCTORING WARNING (Warning ${evt.warning_number}/3)`;
       let formattedMsg = evt.message;
 
-      if (evt.warning_number === 2) {
-        formattedMsg = `Warning 2/3 — Continued violations will terminate your exam. (${evt.type.replace(/_/g, ' ')})`;
+      if (evt.type === 'NO_FACE') {
+        formattedMsg = 'Your face could not be detected for an extended period. Please remain clearly visible to the camera.';
+      } else if (evt.type === 'MULTIPLE_FACES') {
+        formattedMsg = 'Multiple faces were detected in the camera frame. Please ensure you are the only person visible.';
+      } else if (evt.type === 'SUSTAINED_GAZE_AWAY') {
+        formattedMsg = 'Your face orientation has been away from the assessment area for an extended period.';
+      } else if (evt.type === 'CAMERA_OBSTRUCTED') {
+        formattedMsg = 'Camera view is completely obstructed or dark. Please ensure your camera lens is clear.';
       }
 
       setCurrentWarningDetails({
@@ -486,9 +511,12 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
     const percentage = total > 0 ? Math.round((correctCount / total) * 100) : 0;
     const score = correctCount;
 
-    // Stop camera stream completely upon finishing
+    // Stop camera monitoring & stream tracks completely upon finishing
+    proctoringManager.stopCamera();
     if (mediaStream) {
-      mediaStream.getTracks().forEach(t => t.stop());
+      try {
+        mediaStream.getTracks().forEach(t => t.stop());
+      } catch {}
       setMediaStream(null);
     }
 
