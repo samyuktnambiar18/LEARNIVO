@@ -22,7 +22,7 @@ export const HowItWorks: React.FC = () => {
       title: 'Targeted Practice',
       description: 'Attempt dynamically structured problem sets with hints, detailed solutions, and difficulty adaptivity.',
       icon: CheckCircle2,
-      accent: '#FF6B9D'
+      accent: '#38BDF8'
     },
     {
       num: '04',
@@ -34,30 +34,35 @@ export const HowItWorks: React.FC = () => {
   ];
 
   return (
-    <section className="py-20 border-t border-white/5">
+    <section className="py-20 border-t border-white/10">
       <div className="max-w-6xl mx-auto px-6">
-        <div className="text-center max-w-2xl mx-auto mb-16">
-          <h2 className="text-xs font-semibold tracking-widest text-[#C7FF4A] uppercase mb-3">
-            Workflow Architecture
+        <div className="text-center max-w-xl mx-auto mb-14 space-y-2">
+          <div className="text-xs font-mono font-bold tracking-widest text-[#C7FF4A] uppercase">
+            WORKFLOW ARCHITECTURE
+          </div>
+          <h2 className="text-3xl font-extrabold text-[#F7F5FA] tracking-tight">
+            How LEARNIVO Works
           </h2>
-          <p className="text-3xl font-bold text-[#F7F5FA] tracking-tight">
-            How LEARNIVO Drives Learning Excellence
-          </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {steps.map((step) => {
             const Icon = step.icon;
             return (
-              <div key={step.num} className="surface-card p-6 relative group hover:border-white/20 transition-all">
-                <div className="flex items-center justify-between mb-6">
-                  <span className="text-2xl font-mono font-semibold text-white/30">{step.num}</span>
-                  <div className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center text-[#F7F5FA]">
+              <div
+                key={step.num}
+                className="surface-card p-6 border border-white/10 rounded-2xl bg-[#0D0B14] hover:border-white/20 transition-all duration-300 space-y-4"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl font-mono font-bold text-white/30">{step.num}</span>
+                  <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-[#F7F5FA]">
                     <Icon className="w-5 h-5" style={{ color: step.accent }} />
                   </div>
                 </div>
-                <h3 className="text-base font-semibold text-[#F7F5FA] mb-2">{step.title}</h3>
-                <p className="text-xs text-[#A6A1B2] leading-relaxed">{step.description}</p>
+                <div>
+                  <h3 className="text-sm font-bold text-[#F7F5FA] mb-1">{step.title}</h3>
+                  <p className="text-xs text-[#A6A1B2] leading-relaxed">{step.description}</p>
+                </div>
               </div>
             );
           })}
