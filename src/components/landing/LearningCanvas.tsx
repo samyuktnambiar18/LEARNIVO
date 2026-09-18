@@ -1,74 +1,86 @@
 import React from 'react';
-import { Sparkles, Eye, Code, Target } from 'lucide-react';
-import { LearnivoLogo } from '../ui/LearnivoLogo';
+import { ArrowRight, Code2, Bot, Eye, Target } from 'lucide-react';
 
 export const LearningCanvas: React.FC = () => {
   return (
-    <div className="w-full relative flex items-center justify-center p-4 sm:p-8 select-none">
-      {/* Subtle Ambient Background Glow */}
-      <div className="absolute w-80 h-80 rounded-full bg-[#C7FF4A]/10 blur-[120px] pointer-events-none top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
-      <div className="absolute w-72 h-72 rounded-full bg-[#8B5CF6]/15 blur-[120px] pointer-events-none top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+    <div className="w-full relative flex items-center justify-center p-2 sm:p-4 select-none min-h-[520px]">
+      {/* Background 3D Workspace Scene Image Layer */}
+      <div className="absolute inset-0 w-full h-full rounded-3xl overflow-hidden shadow-2xl border border-white/10">
+        <img
+          src="/landing_hero_bg.jpg"
+          alt="LEARNIVO AI Learning Workspace 3D Scene"
+          className="w-full h-full object-cover object-center opacity-85 hover:scale-102 transition-transform duration-700"
+        />
+        {/* Dark Vignette Overlay for Seamless Text Contrast */}
+        <div className="absolute inset-0 bg-gradient-to-r from-[#08090D] via-transparent to-[#08090D]/60 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#08090D]/40 via-transparent to-[#08090D] pointer-events-none" />
+      </div>
 
-      {/* Main Container for Central Visual */}
-      <div className="w-full max-w-[500px] aspect-square relative flex items-center justify-center">
+      {/* Floating Interactive 3D Feature Cards Overlay */}
+      <div className="relative z-20 w-full max-w-[580px] h-[480px] flex items-center justify-center pointer-events-auto">
 
-        {/* Central Learnivo Logo Badge */}
-        <div className="relative z-20 flex flex-col items-center">
-          <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-[#0D0B14] border border-[#C7FF4A]/30 flex items-center justify-center shadow-[0_0_40px_rgba(199,255,74,0.25)] transition-all duration-300 hover:scale-105">
-            <LearnivoLogo size={56} showWordmark={false} />
-          </div>
-        </div>
-
-        {/* 4 Clean Feature Cards Positioned Symmetrically */}
-
-        {/* 1. AI Tutor (Top Left) */}
-        <div className="absolute top-[8%] left-[2%] sm:left-[4%] z-20 transition-all duration-300 hover:-translate-y-1">
-          <div className="px-4 py-3 rounded-2xl bg-[#13111C]/80 border border-white/10 backdrop-blur-md shadow-xl hover:border-[#8B5CF6]/50 transition-all flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#8B5CF6]/15 border border-[#8B5CF6]/30 flex items-center justify-center text-[#8B5CF6] flex-shrink-0">
-              <Sparkles className="w-4 h-4" />
+        {/* 1. Practice Card (Top Left) */}
+        <div className="absolute top-[8%] left-[2%] sm:left-[5%] animate-float-1 transition-all duration-300 hover:scale-105 cursor-pointer">
+          <div className="px-4 py-3 rounded-2xl bg-[#13111C]/85 border border-[#C7FF4A]/50 backdrop-blur-xl shadow-[0_0_25px_rgba(199,255,74,0.3)] flex items-center gap-3.5 group">
+            <div className="w-10 h-10 rounded-xl bg-[#C7FF4A]/20 border border-[#C7FF4A]/40 flex items-center justify-center text-[#C7FF4A] flex-shrink-0">
+              <Code2 className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-xs sm:text-sm font-bold text-[#F7F5FA]">AI Tutor</div>
-              <div className="text-[11px] text-[#A6A1B2]">Ask anything</div>
-            </div>
-          </div>
-        </div>
-
-        {/* 2. Magic View (Top Right) */}
-        <div className="absolute top-[8%] right-[2%] sm:right-[4%] z-20 transition-all duration-300 hover:-translate-y-1">
-          <div className="px-4 py-3 rounded-2xl bg-[#13111C]/80 border border-white/10 backdrop-blur-md shadow-xl hover:border-[#38BDF8]/50 transition-all flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#38BDF8]/15 border border-[#38BDF8]/30 flex items-center justify-center text-[#38BDF8] flex-shrink-0">
-              <Eye className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="text-xs sm:text-sm font-bold text-[#F7F5FA]">Magic View</div>
-              <div className="text-[11px] text-[#A6A1B2]">Visualize concepts</div>
-            </div>
-          </div>
-        </div>
-
-        {/* 3. Practice (Bottom Left) */}
-        <div className="absolute bottom-[8%] left-[2%] sm:left-[4%] z-20 transition-all duration-300 hover:-translate-y-1">
-          <div className="px-4 py-3 rounded-2xl bg-[#13111C]/80 border border-white/10 backdrop-blur-md shadow-xl hover:border-[#C7FF4A]/50 transition-all flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#C7FF4A]/15 border border-[#C7FF4A]/30 flex items-center justify-center text-[#C7FF4A] flex-shrink-0">
-              <Code className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="text-xs sm:text-sm font-bold text-[#F7F5FA]">Practice</div>
+              <div className="text-xs sm:text-sm font-bold text-white flex items-center gap-2">
+                <span>Practice</span>
+              </div>
               <div className="text-[11px] text-[#A6A1B2]">Solve & improve</div>
             </div>
+            <div className="w-7 h-7 rounded-full bg-white/5 flex items-center justify-center text-[#A6A1B2] group-hover:text-[#C7FF4A] group-hover:bg-[#C7FF4A]/10 transition-colors ml-1">
+              <ArrowRight className="w-3.5 h-3.5" />
+            </div>
           </div>
         </div>
 
-        {/* 4. Assessment (Bottom Right) */}
-        <div className="absolute bottom-[8%] right-[2%] sm:right-[4%] z-20 transition-all duration-300 hover:-translate-y-1">
-          <div className="px-4 py-3 rounded-2xl bg-[#13111C]/80 border border-white/10 backdrop-blur-md shadow-xl hover:border-[#A855F7]/50 transition-all flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#A855F7]/15 border border-[#A855F7]/30 flex items-center justify-center text-[#A855F7] flex-shrink-0">
-              <Target className="w-4 h-4" />
+        {/* 2. AI Tutor Card (Top Right) */}
+        <div className="absolute top-[8%] right-[2%] sm:right-[5%] animate-float-2 transition-all duration-300 hover:scale-105 cursor-pointer">
+          <div className="px-4 py-3 rounded-2xl bg-[#13111C]/85 border border-[#8B5CF6]/50 backdrop-blur-xl shadow-[0_0_25px_rgba(139,92,246,0.3)] flex items-center gap-3.5 group">
+            <div className="w-10 h-10 rounded-xl bg-[#8B5CF6]/20 border border-[#8B5CF6]/40 flex items-center justify-center text-[#8B5CF6] flex-shrink-0">
+              <Bot className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-xs sm:text-sm font-bold text-[#F7F5FA]">Assessment</div>
+              <div className="text-xs sm:text-sm font-bold text-white">AI Tutor</div>
+              <div className="text-[11px] text-[#A6A1B2]">Ask anything</div>
+            </div>
+            <div className="w-7 h-7 rounded-full bg-white/5 flex items-center justify-center text-[#A6A1B2] group-hover:text-[#8B5CF6] group-hover:bg-[#8B5CF6]/10 transition-colors ml-1">
+              <ArrowRight className="w-3.5 h-3.5" />
+            </div>
+          </div>
+        </div>
+
+        {/* 3. Magic View Card (Middle Right) */}
+        <div className="absolute top-[48%] right-[0%] sm:right-[2%] -translate-y-1/2 animate-float-3 transition-all duration-300 hover:scale-105 cursor-pointer">
+          <div className="px-4 py-3 rounded-2xl bg-[#13111C]/85 border border-[#38BDF8]/50 backdrop-blur-xl shadow-[0_0_25px_rgba(56,189,248,0.3)] flex items-center gap-3.5 group">
+            <div className="w-10 h-10 rounded-xl bg-[#38BDF8]/20 border border-[#38BDF8]/40 flex items-center justify-center text-[#38BDF8] flex-shrink-0">
+              <Eye className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xs sm:text-sm font-bold text-white">Magic View</div>
+              <div className="text-[11px] text-[#A6A1B2]">Visualize concepts</div>
+            </div>
+            <div className="w-7 h-7 rounded-full bg-white/5 flex items-center justify-center text-[#A6A1B2] group-hover:text-[#38BDF8] group-hover:bg-[#38BDF8]/10 transition-colors ml-1">
+              <ArrowRight className="w-3.5 h-3.5" />
+            </div>
+          </div>
+        </div>
+
+        {/* 4. Assessment Card (Bottom Right) */}
+        <div className="absolute bottom-[10%] right-[2%] sm:right-[5%] animate-float-1 transition-all duration-300 hover:scale-105 cursor-pointer">
+          <div className="px-4 py-3 rounded-2xl bg-[#13111C]/85 border border-[#A855F7]/50 backdrop-blur-xl shadow-[0_0_25px_rgba(168,85,247,0.3)] flex items-center gap-3.5 group">
+            <div className="w-10 h-10 rounded-xl bg-[#A855F7]/20 border border-[#A855F7]/40 flex items-center justify-center text-[#A855F7] flex-shrink-0">
+              <Target className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xs sm:text-sm font-bold text-white">Assessment</div>
               <div className="text-[11px] text-[#A6A1B2]">Test yourself</div>
+            </div>
+            <div className="w-7 h-7 rounded-full bg-white/5 flex items-center justify-center text-[#A6A1B2] group-hover:text-[#A855F7] group-hover:bg-[#A855F7]/10 transition-colors ml-1">
+              <ArrowRight className="w-3.5 h-3.5" />
             </div>
           </div>
         </div>

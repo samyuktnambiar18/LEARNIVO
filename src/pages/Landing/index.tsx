@@ -50,7 +50,7 @@ export const LandingPage: React.FC = () => {
             <div className="flex items-center gap-4">
               <button
                 onClick={handleGoToWorkspace}
-                className="bg-[#C7FF4A] text-[#08090D] font-extrabold text-xs sm:text-sm px-5 py-2.5 rounded-full shadow-[0_0_20px_rgba(199,255,74,0.3)] hover:shadow-[0_0_30px_rgba(199,255,74,0.5)] hover:bg-[#b8f533] transition-all duration-300 inline-flex items-center gap-2 group cursor-pointer"
+                className="bg-[#C7FF4A] text-[#08090D] font-extrabold text-xs sm:text-sm px-6 py-2.5 rounded-full shadow-[0_0_20px_rgba(199,255,74,0.4)] hover:shadow-[0_0_30px_rgba(199,255,74,0.6)] hover:bg-[#b8f533] transition-all duration-300 inline-flex items-center gap-2 group cursor-pointer"
               >
                 <span>Go to Workspace</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
@@ -60,32 +60,32 @@ export const LandingPage: React.FC = () => {
         </header>
 
         {/* HERO SECTION */}
-        <section className="pt-12 pb-20 md:pt-20 md:pb-28 px-6 max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
+        <section className="pt-10 pb-16 md:pt-16 md:pb-24 px-6 max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-6 items-center">
             
             {/* LEFT COLUMN: HERO TEXT & CTA */}
-            <div className="lg:col-span-6 space-y-6 text-left">
+            <div className="lg:col-span-6 space-y-6 text-left pr-0 lg:pr-4">
               
-              {/* Subtle Eyebrow */}
-              <div className="text-xs font-mono font-bold tracking-widest text-[#C7FF4A]/80 uppercase">
-                AI LEARNING WORKSPACE
+              {/* Eyebrow */}
+              <div className="text-[11px] font-mono font-semibold tracking-[0.25em] text-[#C7FF4A]/80 uppercase mb-2">
+                A I   L E A R N I N G   W O R K S P A C E
               </div>
 
               {/* Main Wordmark Heading */}
-              <h1 className="text-6xl sm:text-7xl md:text-8xl font-black tracking-tight leading-none text-[#F7F5FA]">
-                LEARNI<span className="text-[#C7FF4A]">VO</span>
+              <h1 className="text-6xl sm:text-7xl lg:text-8xl font-black tracking-tight leading-none text-white">
+                LEARN<span className="text-[#C7FF4A] drop-shadow-[0_0_30px_rgba(199,255,74,0.3)]">IVO</span>
               </h1>
 
               {/* Single Short Description */}
-              <p className="text-base sm:text-lg md:text-xl text-[#A6A1B2] max-w-lg leading-relaxed font-normal">
+              <p className="text-sm sm:text-base md:text-lg text-[#A6A1B2] max-w-md leading-relaxed font-normal">
                 An intelligent workspace for learning, practice, and personalized study.
               </p>
 
-              {/* Proportional Action Buttons */}
-              <div className="pt-4 flex flex-wrap items-center gap-4">
+              {/* Action Buttons */}
+              <div className="pt-2 flex flex-wrap items-center gap-4">
                 <button
                   onClick={handleStartLearning}
-                  className="bg-[#C7FF4A] text-[#08090D] font-extrabold text-sm sm:text-base px-8 py-3.5 rounded-full shadow-[0_0_25px_rgba(199,255,74,0.35)] hover:shadow-[0_0_35px_rgba(199,255,74,0.6)] hover:bg-[#b8f533] transition-all duration-300 inline-flex items-center gap-2.5 group cursor-pointer"
+                  className="bg-[#C7FF4A] text-[#08090D] font-black text-sm sm:text-base px-8 py-3.5 rounded-full shadow-[0_0_25px_rgba(199,255,74,0.4)] hover:shadow-[0_0_35px_rgba(199,255,74,0.7)] hover:bg-[#b8f533] transition-all duration-300 inline-flex items-center gap-2.5 group cursor-pointer"
                 >
                   <span>Start Learning</span>
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-200" />
@@ -93,15 +93,23 @@ export const LandingPage: React.FC = () => {
 
                 <button
                   onClick={handleGoToWorkspace}
-                  className="bg-white/5 border border-white/10 text-white font-bold text-sm sm:text-base px-7 py-3.5 rounded-full hover:bg-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer"
+                  className="bg-transparent border border-white/20 text-white font-bold text-sm sm:text-base px-8 py-3.5 rounded-full hover:border-white/40 hover:bg-white/5 transition-all duration-300 cursor-pointer"
                 >
                   Explore Workspace
                 </button>
               </div>
 
+              {/* Bottom Left Quote / Subtext */}
+              <div className="pt-6">
+                <div className="border-l border-white/20 pl-4 py-0.5 text-xs text-[#A6A1B2] leading-tight font-medium space-y-0.5">
+                  <div>Knowledge</div>
+                  <div>moves with you.</div>
+                </div>
+              </div>
+
             </div>
 
-            {/* RIGHT COLUMN: PRODUCT VISUAL (~45-50% Hero Width) */}
+            {/* RIGHT COLUMN: PRODUCT VISUAL (50% Hero Width) */}
             <div className="lg:col-span-6 w-full flex justify-center">
               <LearningCanvas />
             </div>
