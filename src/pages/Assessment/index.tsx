@@ -166,14 +166,11 @@ export const AssessmentPage: React.FC = () => {
     <MainLayout>
       <div className="space-y-8 max-w-5xl mx-auto">
         {/* Assessment Landing Header */}
-        <div className="surface-card p-8 border border-white/10 rounded-2xl bg-[#0D0B14] relative overflow-hidden shadow-2xl flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="surface-card p-8 border border-white/10 rounded-2xl bg-[#0D0B14] relative overflow-hidden shadow-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-6">
           <div className="space-y-2 max-w-xl">
             <div className="flex items-center gap-2 mb-1">
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider bg-[#C7FF4A]/10 text-[#C7FF4A] border border-[#C7FF4A]/30 uppercase">
                 Evaluation Engine
-              </span>
-              <span className="text-[10px] font-mono text-[#A6A1B2] bg-white/5 px-2 py-0.5 rounded border border-white/10">
-                {selectedSubject.code}
               </span>
             </div>
             <h2 className="text-3xl font-black text-[#F7F5FA] tracking-tight">
@@ -184,24 +181,7 @@ export const AssessmentPage: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex-shrink-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            {/* Subject Selector */}
-            <div className="relative">
-              <select
-                value={selectedSubject.code}
-                onChange={(e) => handleSubjectChange(e.target.value)}
-                disabled={isFetchingWebhook}
-                className="w-full sm:w-auto bg-[#181620] border border-white/20 rounded-xl px-3.5 py-3 text-xs text-[#F7F5FA] font-medium focus:outline-none focus:border-[#C7FF4A] shadow-inner cursor-pointer"
-                aria-label="Select Assessment Subject"
-              >
-                {availableSubjects.map((s) => (
-                  <option key={s.code} value={s.code}>
-                    {s.name} ({s.code})
-                  </option>
-                ))}
-              </select>
-            </div>
-
+          <div className="flex-shrink-0 flex items-center">
             <Button
               variant="primary"
               isLoading={isFetchingWebhook}
